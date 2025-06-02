@@ -115,10 +115,21 @@ export function AnnotationReportLetterView({
     // Process each snippet
     snippets.forEach((snippet, index) => {
       const quote = snippet.quote
-      const start = letter.indexOf(quote)
+      let start = letter.indexOf(quote)
+      let textToHighlight = quote
+
+      // If we can't find the original quote but there's a replacement,
+      // try to find the replacement text in the letter
+      if (start === -1 && snippet.replacement) {
+        const replacementStart = letter.indexOf(snippet.replacement.replacementText)
+        if (replacementStart !== -1) {
+          start = replacementStart
+          textToHighlight = snippet.replacement.replacementText
+        }
+      }
 
       if (start !== -1) {
-        const end = start + quote.length
+        const end = start + textToHighlight.length
         const isSelected = selectedSnippetIndex === index
 
         let colorClass = getSupportRatingColor(snippet.supportRating)
@@ -131,17 +142,35 @@ export function AnnotationReportLetterView({
         const categoryIcon = getCategoryIcon(snippet.category)
         const supportIcon = snippet.supportRating === "strong" ? "✓" : snippet.supportRating === "partial" ? "⚠" : "✗"
 
-        const highlightedQuote = snippet.replacement
-          ? `<span 
-              class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${categoryBorderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
-              data-index="${index}"
-              title="Category: ${snippet.category} | Support: ${snippet.supportRating} | Has replacement"
-            ><span class="text-xs mr-1">${categoryIcon}</span><span class="line-through text-gray-500 dark:text-gray-400">${snippet.replacement.currentText}</span> <span class="text-blue-700 dark:text-blue-300 font-medium">${snippet.replacement.replacementText}</span><span class="text-xs ml-1">${supportIcon}</span></span>`
-          : `<span 
-              class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${categoryBorderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
-              data-index="${index}"
-              title="Category: ${snippet.category} | Support: ${snippet.supportRating}"
-            ><span class="text-xs mr-1">${categoryIcon}</span>${quote}<span class="text-xs ml-1">${supportIcon}</span></span>`
+        let highlightedQuote: string
+
+        if (snippet.replacement) {
+          // Check if the text in the letter matches the replacement text (already applied)
+          const isReplacementApplied = textToHighlight === snippet.replacement.replacementText
+
+          if (isReplacementApplied) {
+            // Replacement has been applied - show the current text with an indicator
+            highlightedQuote = `<span 
+            class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${categoryBorderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
+            data-index="${index}"
+            title="Category: ${snippet.category} | Support: ${snippet.supportRating} | Replacement applied"
+          ><span class="text-xs mr-1">${categoryIcon}</span><span class="text-blue-700 dark:text-blue-300 font-medium">${textToHighlight}</span><span class="text-xs ml-1 text-blue-600" title="Replacement applied">🔄</span><span class="text-xs ml-1">${supportIcon}</span></span>`
+          } else {
+            // Original text found - show crossed out with replacement
+            highlightedQuote = `<span 
+            class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${categoryBorderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
+            data-index="${index}"
+            title="Category: ${snippet.category} | Support: ${snippet.supportRating} | Has replacement"
+          ><span class="text-xs mr-1">${categoryIcon}</span><span class="line-through text-gray-500 dark:text-gray-400">${snippet.replacement.currentText}</span> <span class="text-blue-700 dark:text-blue-300 font-medium">${snippet.replacement.replacementText}</span><span class="text-xs ml-1">${supportIcon}</span></span>`
+          }
+        } else {
+          // No replacement - standard highlighting
+          highlightedQuote = `<span 
+          class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${categoryBorderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
+          data-index="${index}"
+          title="Category: ${snippet.category} | Support: ${snippet.supportRating}"
+        ><span class="text-xs mr-1">${categoryIcon}</span>${textToHighlight}<span class="text-xs ml-1">${supportIcon}</span></span>`
+        }
 
         modifications.push({
           start,
@@ -196,6 +225,9 @@ export function AnnotationReportLetterView({
         <Badge variant="outline" className="flex items-center gap-1 border-blue-300 bg-blue-100 dark:bg-blue-900/30">
           <span className="line-through text-gray-500">Original</span>{" "}
           <span className="text-blue-700">Replacement</span>
+        </Badge>
+        <Badge variant="outline" className="flex items-center gap-1 border-blue-300 bg-blue-100 dark:bg-blue-900/30">
+          🔄 <span className="text-blue-700">Applied</span>
         </Badge>
       </div>
 

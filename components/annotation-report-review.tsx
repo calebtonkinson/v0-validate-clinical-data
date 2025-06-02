@@ -325,19 +325,29 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
                 {currentSnippet.replacement && (
                   <div>
                     <h3 className="text-sm font-medium mb-2 flex items-center">
-                      <Replace className="h-4 w-4 mr-2" /> Suggested Replacement
+                      <Replace className="h-4 w-4 mr-2" />
+                      {/* Check if replacement was likely applied by looking for replacement text in letter */}
+                      {letter.includes(currentSnippet.replacement.replacementText) &&
+                      !letter.includes(currentSnippet.replacement.currentText)
+                        ? "Replacement Applied"
+                        : "Suggested Replacement"}
                     </h3>
                     <Card>
                       <CardContent className="p-4">
                         <div className="space-y-3">
                           <div>
-                            <p className="text-xs text-muted-foreground mb-1">Current text:</p>
+                            <p className="text-xs text-muted-foreground mb-1">Original text:</p>
                             <p className="text-sm line-through text-gray-500">
                               "{currentSnippet.replacement.currentText}"
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground mb-1">Replacement text:</p>
+                            <p className="text-xs text-muted-foreground mb-1">
+                              {letter.includes(currentSnippet.replacement.replacementText) &&
+                              !letter.includes(currentSnippet.replacement.currentText)
+                                ? "Applied text:"
+                                : "Replacement text:"}
+                            </p>
                             <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
                               "{currentSnippet.replacement.replacementText}"
                             </p>
@@ -348,6 +358,14 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
                               {currentSnippet.replacement.justification}
                             </p>
                           </div>
+                          {letter.includes(currentSnippet.replacement.replacementText) &&
+                            !letter.includes(currentSnippet.replacement.currentText) && (
+                              <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                                <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center">
+                                  🔄 This replacement appears to have been applied to the letter
+                                </p>
+                              </div>
+                            )}
                         </div>
                       </CardContent>
                     </Card>
