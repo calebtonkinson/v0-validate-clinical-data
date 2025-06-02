@@ -18,7 +18,51 @@ export const settingsMessageSchema = z.object({
   }),
 })
 
-export const dataMessageSchema = z.object({
+// Schema for Braintrust data format
+export const braintrustDataMessageSchema = z.object({
+  type: z.literal("data"),
+  data: z.object({
+    span_id: z.string(),
+    output: z.object({
+      letter: z.string(),
+      fullAnnotationReport: z.object({
+        snippets: z.array(
+          z.object({
+            quote: z.string(),
+            type: z.enum(["quote", "statement"]),
+            category: z.enum(["lab", "vital", "imaging", "cdi_query", "note", "med", "other"]),
+            evidence: z.array(
+              z.object({
+                id: z.string().optional(),
+                type: z.string(),
+                timestamp: z.string(),
+                hideTimestamp: z.boolean().optional(),
+                hideResult: z.boolean().optional(),
+                resultLabel: z.string().optional(),
+                result: z.string(),
+                reference: z.string().optional(),
+                reasoning: z.string().optional(),
+                timezone: z.string().optional(),
+                generatedId: z.string().optional(),
+              }),
+            ),
+            supportRating: z.enum(["strong", "partial", "none"]),
+            replacement: z
+              .object({
+                currentText: z.string(),
+                replacementText: z.string(),
+                justification: z.string(),
+              })
+              .optional(),
+          }),
+        ),
+      }),
+    }),
+  }),
+})
+
+// Legacy direct format schema (for backwards compatibility)
+export const directDataMessageSchema = z.object({
   type: z.literal("data"),
   data: z.object({
     letter: z.string(),
@@ -55,7 +99,7 @@ export const dataMessageSchema = z.object({
   }),
 })
 
-export const messageSchema = z.union([settingsMessageSchema, dataMessageSchema])
+export const messageSchema = z.union([settingsMessageSchema, braintrustDataMessageSchema, directDataMessageSchema])
 
 export type Message = z.infer<typeof messageSchema>
 
@@ -103,6 +147,13 @@ export default function IframePage() {
     }
   }
 
+  const mapBraintrustData = (braintrustData: any): AnnotationData => {
+    return {
+      letter: braintrustData.output.letter,
+      snippets: braintrustData.output.fullAnnotationReport.snippets,
+    }
+  }
+
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       try {
@@ -120,7 +171,17 @@ export default function IframePage() {
             document.documentElement.classList.remove("dark")
           }
         } else if (message.type === "data") {
-          setData(message.data)
+          let mappedData: AnnotationData
+
+          // Check if it's Braintrust format (has output.fullAnnotationReport)
+          if ("output" in message.data && "fullAnnotationReport" in message.data.output) {
+            mappedData = mapBraintrustData(message.data)
+          } else {
+            // Direct format
+            mappedData = message.data as AnnotationData
+          }
+
+          setData(mappedData)
           setIsLoading(false)
           setError(null)
         }
@@ -190,7 +251,7 @@ export default function IframePage() {
                   This log doesn't contain annotation report data in the expected format.
                 </p>
                 <p className="text-xs text-muted-foreground mt-3">
-                  Expected: Clinical letter with annotation snippets and evidence
+                  Expected: Braintrust span with output.letter and output.fullAnnotationReport.snippets
                 </p>
               </div>
 
@@ -232,35 +293,40 @@ export default function IframePage() {
                         </div>
 
                         <div className="mt-4">
-                          <h4 className="text-sm font-medium mb-2">Expected Format:</h4>
+                          <h4 className="text-sm font-medium mb-2">Expected Braintrust Format:</h4>
                           <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md border border-blue-200 dark:border-blue-800">
                             <pre className="text-xs overflow-auto max-h-40 whitespace-pre-wrap">
                               {`{
   "type": "data",
   "data": {
-    "letter": "Clinical letter text...",
-    "snippets": [
-      {
-        "quote": "text from letter",
-        "type": "quote" | "statement",
-        "category": "lab" | "vital" | "imaging" | "cdi_query" | "note" | "med" | "other",
-        "evidence": [
+    "span_id": "...",
+    "output": {
+      "letter": "Clinical letter text...",
+      "fullAnnotationReport": {
+        "snippets": [
           {
-            "id": "optional-id",
-            "type": "Evidence Type",
-            "timestamp": "2023-05-15T08:30:00Z",
-            "result": "Evidence result text",
-            "reasoning": "Why this evidence supports the quote"
+            "quote": "text from letter",
+            "type": "quote" | "statement",
+            "category": "lab" | "vital" | "imaging" | "cdi_query" | "note" | "med" | "other",
+            "evidence": [
+              {
+                "id": "optional-id",
+                "type": "Evidence Type",
+                "timestamp": "2023-05-15T08:30:00Z",
+                "result": "Evidence result text",
+                "reasoning": "Why this evidence supports the quote"
+              }
+            ],
+            "supportRating": "strong" | "partial" | "none",
+            "replacement": {
+              "currentText": "original text",
+              "replacementText": "suggested replacement",
+              "justification": "reason for replacement"
+            }
           }
-        ],
-        "supportRating": "strong" | "partial" | "none",
-        "replacement": {
-          "currentText": "original text",
-          "replacementText": "suggested replacement",
-          "justification": "reason for replacement"
-        }
+        ]
       }
-    ]
+    }
   }
 }`}
                             </pre>
