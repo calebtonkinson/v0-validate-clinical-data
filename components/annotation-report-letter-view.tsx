@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, AlertCircle, XCircle, Clock } from "lucide-react"
+import { CheckCircle, AlertCircle, XCircle, Clock, ExternalLink } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -23,11 +23,21 @@ interface AppendixCitation {
   generatedId?: string
 }
 
+interface SupportingSource {
+  source: string
+  sourceUrl?: string
+  citation: string
+  whenToUse?: string
+  howToUse?: string
+  generatedId: string
+}
+
 interface AnnotationSnippet {
   quote: string
-  type: "quote" | "statement"
+  type: "quote" | "statement" | "source"
   category: "lab" | "vital" | "imaging" | "cdi_query" | "note" | "med" | "other"
   evidence: AppendixCitation[]
+  supportingSources?: SupportingSource[]
   supportRating: "strong" | "partial" | "none"
   replacement?: {
     currentText: string
@@ -70,6 +80,19 @@ export function AnnotationReportLetterView({
     }
   }
 
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case "source":
+        return "📚"
+      case "quote":
+        return "💬"
+      case "statement":
+        return "📄"
+      default:
+        return "❓"
+    }
+  }
+
   const getSupportRatingColor = (rating: string) => {
     switch (rating) {
       case "strong":
@@ -80,6 +103,19 @@ export function AnnotationReportLetterView({
         return "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700"
       default:
         return "bg-gray-100 dark:bg-gray-900/30 border-gray-300 dark:border-gray-700"
+    }
+  }
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case "source":
+        return "border-l-indigo-500"
+      case "quote":
+        return "border-l-emerald-500"
+      case "statement":
+        return "border-l-amber-500"
+      default:
+        return "border-l-gray-400"
     }
   }
 
@@ -133,12 +169,13 @@ export function AnnotationReportLetterView({
         const isSelected = selectedSnippetIndex === index
 
         let colorClass = getSupportRatingColor(snippet.supportRating)
-        const categoryBorderClass = getCategoryColor(snippet.category)
+        const borderClass = snippet.type === "source" ? getTypeColor(snippet.type) : getCategoryColor(snippet.category)
 
         if (isSelected) {
           colorClass += " ring-2 ring-blue-500"
         }
 
+        const typeIcon = getTypeIcon(snippet.type)
         const categoryIcon = getCategoryIcon(snippet.category)
         const supportIcon = snippet.supportRating === "strong" ? "✓" : snippet.supportRating === "partial" ? "⚠" : "✗"
 
@@ -151,25 +188,25 @@ export function AnnotationReportLetterView({
           if (isReplacementApplied) {
             // Replacement has been applied - show the current text with an indicator
             highlightedQuote = `<span 
-            class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${categoryBorderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
+            class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${borderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
             data-index="${index}"
-            title="Category: ${snippet.category} | Support: ${snippet.supportRating} | Replacement applied"
-          ><span class="text-xs mr-1">${categoryIcon}</span><span class="text-blue-700 dark:text-blue-300 font-medium">${textToHighlight}</span><span class="text-xs ml-1 text-blue-600" title="Replacement applied">🔄</span><span class="text-xs ml-1">${supportIcon}</span></span>`
+            title="Type: ${snippet.type} | Category: ${snippet.category} | Support: ${snippet.supportRating} | Replacement applied"
+          ><span class="text-xs mr-1">${typeIcon}</span><span class="text-xs mr-1">${categoryIcon}</span><span class="text-blue-700 dark:text-blue-300 font-medium">${textToHighlight}</span><span class="text-xs ml-1 text-blue-600" title="Replacement applied">🔄</span><span class="text-xs ml-1">${supportIcon}</span></span>`
           } else {
             // Original text found - show crossed out with replacement
             highlightedQuote = `<span 
-            class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${categoryBorderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
+            class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${borderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
             data-index="${index}"
-            title="Category: ${snippet.category} | Support: ${snippet.supportRating} | Has replacement"
-          ><span class="text-xs mr-1">${categoryIcon}</span><span class="line-through text-gray-500 dark:text-gray-400">${snippet.replacement.currentText}</span> <span class="text-blue-700 dark:text-blue-300 font-medium">${snippet.replacement.replacementText}</span><span class="text-xs ml-1">${supportIcon}</span></span>`
+            title="Type: ${snippet.type} | Category: ${snippet.category} | Support: ${snippet.supportRating} | Has replacement"
+          ><span class="text-xs mr-1">${typeIcon}</span><span class="text-xs mr-1">${categoryIcon}</span><span class="line-through text-gray-500 dark:text-gray-400">${snippet.replacement.currentText}</span> <span class="text-blue-700 dark:text-blue-300 font-medium">${snippet.replacement.replacementText}</span><span class="text-xs ml-1">${supportIcon}</span></span>`
           }
         } else {
           // No replacement - standard highlighting
           highlightedQuote = `<span 
-          class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${categoryBorderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
+          class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${borderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
           data-index="${index}"
-          title="Category: ${snippet.category} | Support: ${snippet.supportRating}"
-        ><span class="text-xs mr-1">${categoryIcon}</span>${textToHighlight}<span class="text-xs ml-1">${supportIcon}</span></span>`
+          title="Type: ${snippet.type} | Category: ${snippet.category} | Support: ${snippet.supportRating}"
+        ><span class="text-xs mr-1">${typeIcon}</span><span class="text-xs mr-1">${categoryIcon}</span>${textToHighlight}<span class="text-xs ml-1">${supportIcon}</span></span>`
         }
 
         modifications.push({
@@ -231,7 +268,22 @@ export function AnnotationReportLetterView({
         </Badge>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-10 gap-2 mb-4">
+        <Badge
+          variant="outline"
+          className="flex items-center gap-1 border-indigo-300 bg-indigo-100 dark:bg-indigo-900/30"
+        >
+          📚 Source
+        </Badge>
+        <Badge
+          variant="outline"
+          className="flex items-center gap-1 border-emerald-300 bg-emerald-100 dark:bg-emerald-900/30"
+        >
+          💬 Quote
+        </Badge>
+        <Badge variant="outline" className="flex items-center gap-1 border-amber-300 bg-amber-100 dark:bg-amber-900/30">
+          📄 Statement
+        </Badge>
         <Badge variant="outline" className="flex items-center gap-1 border-blue-300 bg-blue-100 dark:bg-blue-900/30">
           🧪 Lab
         </Badge>
@@ -266,7 +318,7 @@ export function AnnotationReportLetterView({
           <Card>
             <CardHeader>
               <CardTitle>Clinical Letter</CardTitle>
-              <CardDescription>Click on highlighted snippets to view evidence</CardDescription>
+              <CardDescription>Click on highlighted snippets to view evidence and sources</CardDescription>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[500px] rounded-md border p-4">
@@ -287,7 +339,7 @@ export function AnnotationReportLetterView({
                 <div>
                   <CardTitle>Evidence Panel</CardTitle>
                   <CardDescription>
-                    {selectedSnippet ? "Evidence for selected snippet" : "Click a snippet to view evidence"}
+                    {selectedSnippet ? "Evidence and sources for selected snippet" : "Click a snippet to view details"}
                   </CardDescription>
                 </div>
                 {selectedSnippet && (
@@ -309,6 +361,8 @@ export function AnnotationReportLetterView({
                 <div className="space-y-4">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">{getTypeIcon(selectedSnippet.type)}</span>
+                      <span className="font-medium capitalize">{selectedSnippet.type}</span>
                       <span className="text-lg">{getCategoryIcon(selectedSnippet.category)}</span>
                       <span className="font-medium capitalize">{selectedSnippet.category}</span>
                       <Badge variant="outline" className={getSupportRatingColor(selectedSnippet.supportRating)}>
@@ -337,6 +391,71 @@ export function AnnotationReportLetterView({
                       </CardContent>
                     </Card>
                   </div>
+
+                  {selectedSnippet.supportingSources && selectedSnippet.supportingSources.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-medium mb-2">
+                        Supporting Sources ({selectedSnippet.supportingSources.length})
+                      </h3>
+                      <ScrollArea className="h-[200px]">
+                        <div className="space-y-3">
+                          {selectedSnippet.supportingSources.map((source, index) => (
+                            <Card key={index} className="border-l-4 border-l-indigo-500">
+                              <CardContent className="p-3">
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="font-medium text-sm">{source.source}</h4>
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="outline" className="text-xs">
+                                        {source.generatedId}
+                                      </Badge>
+                                      {source.sourceUrl && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0"
+                                          onClick={() => window.open(source.sourceUrl, "_blank")}
+                                        >
+                                          <ExternalLink className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <Separator />
+
+                                  <div>
+                                    <h5 className="text-xs font-medium mb-1">Citation:</h5>
+                                    <div className="text-xs p-2 bg-gray-50 dark:bg-gray-800 rounded border">
+                                      {source.citation}
+                                    </div>
+                                  </div>
+
+                                  {source.whenToUse && (
+                                    <div>
+                                      <h5 className="text-xs font-medium mb-1">When to Use:</h5>
+                                      <div className="text-xs p-2 bg-gray-50 dark:bg-gray-800 rounded border">
+                                        {source.whenToUse}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {source.howToUse && (
+                                    <div>
+                                      <h5 className="text-xs font-medium mb-1">How to Use:</h5>
+                                      <div className="text-xs p-2 bg-gray-50 dark:bg-gray-800 rounded border">
+                                        {source.howToUse}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
 
                   <div>
                     <h3 className="text-sm font-medium mb-2">
@@ -410,7 +529,9 @@ export function AnnotationReportLetterView({
               ) : (
                 <div className="text-center py-20 text-muted-foreground">
                   <div className="text-4xl mb-4">👆</div>
-                  <p className="text-sm">Click on any highlighted snippet in the letter to view its evidence</p>
+                  <p className="text-sm">
+                    Click on any highlighted snippet in the letter to view its evidence and sources
+                  </p>
                 </div>
               )}
             </CardContent>

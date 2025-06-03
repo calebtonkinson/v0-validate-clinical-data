@@ -29,8 +29,20 @@ export const braintrustDataMessageSchema = z.object({
         snippets: z.array(
           z.object({
             quote: z.string(),
-            type: z.enum(["quote", "statement"]),
+            type: z.enum(["quote", "statement", "source"]),
             category: z.enum(["lab", "vital", "imaging", "cdi_query", "note", "med", "other"]),
+            supportingSources: z
+              .array(
+                z.object({
+                  source: z.string(),
+                  sourceUrl: z.string().optional(),
+                  citation: z.string(),
+                  whenToUse: z.string().optional(),
+                  howToUse: z.string().optional(),
+                  generatedId: z.string(),
+                }),
+              )
+              .optional(),
             evidence: z.array(
               z.object({
                 id: z.string().optional(),

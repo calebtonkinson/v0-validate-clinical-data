@@ -22,6 +22,8 @@ import {
   HelpCircle,
   Stethoscope,
   Replace,
+  ExternalLink,
+  BookOpen,
 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { AnnotationReportLetterView } from "./annotation-report-letter-view"
@@ -40,11 +42,21 @@ interface AppendixCitation {
   generatedId?: string
 }
 
+interface SupportingSource {
+  source: string
+  sourceUrl?: string
+  citation: string
+  whenToUse?: string
+  howToUse?: string
+  generatedId: string
+}
+
 interface AnnotationSnippet {
   quote: string
-  type: "quote" | "statement"
+  type: "quote" | "statement" | "source"
   category: "lab" | "vital" | "imaging" | "cdi_query" | "note" | "med" | "other"
   evidence: AppendixCitation[]
+  supportingSources?: SupportingSource[]
   supportRating: "strong" | "partial" | "none"
   replacement?: {
     currentText: string
@@ -100,6 +112,19 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
     }
   }
 
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case "source":
+        return <BookOpen className="h-4 w-4" />
+      case "quote":
+        return <Quote className="h-4 w-4" />
+      case "statement":
+        return <FileText className="h-4 w-4" />
+      default:
+        return <HelpCircle className="h-4 w-4" />
+    }
+  }
+
   const getCategoryColor = (category: string) => {
     switch (category) {
       case "lab":
@@ -114,6 +139,19 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
         return "bg-gray-100 dark:bg-gray-900/30 border-gray-300 text-gray-700 dark:text-gray-300"
       case "med":
         return "bg-red-100 dark:bg-red-900/30 border-red-300 text-red-700 dark:text-red-300"
+      default:
+        return "bg-gray-100 dark:bg-gray-900/30 border-gray-300 text-gray-700 dark:text-gray-300"
+    }
+  }
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case "source":
+        return "bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 text-indigo-700 dark:text-indigo-300"
+      case "quote":
+        return "bg-emerald-100 dark:bg-emerald-900/30 border-emerald-300 text-emerald-700 dark:text-emerald-300"
+      case "statement":
+        return "bg-amber-100 dark:bg-amber-900/30 border-amber-300 text-amber-700 dark:text-amber-300"
       default:
         return "bg-gray-100 dark:bg-gray-900/30 border-gray-300 text-gray-700 dark:text-gray-300"
     }
@@ -144,15 +182,19 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
     }
   }
 
-  const getTypeIcon = (type: string) => {
-    return type === "quote" ? <Quote className="h-3 w-3" /> : <FileText className="h-3 w-3" />
-  }
-
   // Get summary statistics
   const getSummaryStats = () => {
     const categoryCount = snippets.reduce(
       (acc, snippet) => {
         acc[snippet.category] = (acc[snippet.category] || 0) + 1
+        return acc
+      },
+      {} as Record<string, number>,
+    )
+
+    const typeCount = snippets.reduce(
+      (acc, snippet) => {
+        acc[snippet.type] = (acc[snippet.type] || 0) + 1
         return acc
       },
       {} as Record<string, number>,
@@ -167,8 +209,9 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
     )
 
     const replacementCount = snippets.filter((s) => s.replacement).length
+    const sourcesCount = snippets.reduce((acc, snippet) => acc + (snippet.supportingSources?.length || 0), 0)
 
-    return { categoryCount, supportCount, replacementCount }
+    return { categoryCount, typeCount, supportCount, replacementCount, sourcesCount }
   }
 
   const currentSnippet = snippets[currentIndex]
@@ -188,7 +231,7 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
         </TabsList>
 
         <TabsContent value="overview">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Total Snippets</CardTitle>
@@ -229,6 +272,25 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
 
             <Card>
               <CardHeader>
+                <CardTitle>Types</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {Object.entries(stats.typeCount).map(([type, count]) => (
+                    <div key={type} className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        {getTypeIcon(type)}
+                        <span className="text-sm capitalize">{type}</span>
+                      </div>
+                      <Badge variant="outline">{count}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>Categories</CardTitle>
               </CardHeader>
               <CardContent>
@@ -243,6 +305,16 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Supporting Sources</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{stats.sourcesCount}</div>
+                <p className="text-sm text-muted-foreground">total sources referenced</p>
               </CardContent>
             </Card>
 
@@ -279,6 +351,10 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={getTypeColor(currentSnippet.type)}>
+                      {getTypeIcon(currentSnippet.type)}
+                      <span className="ml-1 capitalize">{currentSnippet.type}</span>
+                    </Badge>
                     <Badge variant="outline" className={getCategoryColor(currentSnippet.category)}>
                       {getCategoryIcon(currentSnippet.category)}
                       <span className="ml-1 capitalize">{currentSnippet.category}</span>
@@ -372,6 +448,69 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
                   </div>
                 )}
 
+                {currentSnippet.supportingSources && currentSnippet.supportingSources.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium mb-2">
+                      Supporting Sources ({currentSnippet.supportingSources.length})
+                    </h3>
+                    <ScrollArea className="h-[300px]">
+                      <div className="space-y-4">
+                        {currentSnippet.supportingSources.map((source, index) => (
+                          <Card key={index}>
+                            <CardContent className="p-4">
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-medium">{source.source}</h4>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline">{source.generatedId}</Badge>
+                                    {source.sourceUrl && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => window.open(source.sourceUrl, "_blank")}
+                                      >
+                                        <ExternalLink className="h-4 w-4 mr-1" />
+                                        View
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <Separator />
+
+                                <div>
+                                  <h5 className="text-xs font-medium mb-1">Citation:</h5>
+                                  <div className="text-sm p-2 bg-gray-50 dark:bg-gray-800 rounded border">
+                                    {source.citation}
+                                  </div>
+                                </div>
+
+                                {source.whenToUse && (
+                                  <div>
+                                    <h5 className="text-xs font-medium mb-1">When to Use:</h5>
+                                    <div className="text-sm p-2 bg-gray-50 dark:bg-gray-800 rounded border">
+                                      {source.whenToUse}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {source.howToUse && (
+                                  <div>
+                                    <h5 className="text-xs font-medium mb-1">How to Use:</h5>
+                                    <div className="text-sm p-2 bg-gray-50 dark:bg-gray-800 rounded border">
+                                      {source.howToUse}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
+
                 <div>
                   <h3 className="text-sm font-medium mb-2">Supporting Evidence ({currentSnippet.evidence.length})</h3>
                   <ScrollArea className="h-[400px]">
@@ -439,7 +578,10 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
             <CardFooter className="border-t pt-4">
               <div className="w-full flex items-center justify-between">
                 <div className="text-sm text-muted-foreground">
-                  {currentSnippet.evidence.length} evidence items for this snippet
+                  {currentSnippet.evidence.length} evidence items
+                  {currentSnippet.supportingSources && currentSnippet.supportingSources.length > 0 && (
+                    <span> • {currentSnippet.supportingSources.length} supporting sources</span>
+                  )}
                 </div>
                 <div className="flex items-center space-x-1">
                   {snippets.map((snippet, index) => (
