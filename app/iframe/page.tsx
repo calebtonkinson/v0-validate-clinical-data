@@ -198,8 +198,15 @@ export default function IframePage() {
           setError(null)
         }
       } catch (error) {
-        console.warn("Unsupported data format received:", error)
-        setError("unsupported")
+        console.warn("Validation failed:", error)
+
+        // Capture the Zod error details
+        if (error instanceof z.ZodError) {
+          const errorDetails = error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")
+          setError(`Validation error: ${errorDetails}`)
+        } else {
+          setError("unsupported")
+        }
         setIsLoading(false)
       }
     }
@@ -318,7 +325,7 @@ export default function IframePage() {
         "snippets": [
           {
             "quote": "text from letter",
-            "type": "quote" | "statement",
+            "type": "quote" | "statement" | "source",
             "category": "lab" | "vital" | "imaging" | "cdi_query" | "note" | "med" | "other",
             "evidence": [
               {
@@ -327,6 +334,132 @@ export default function IframePage() {
                 "timestamp": "2023-05-15T08:30:00Z",
                 "result": "Evidence result text",
                 "reasoning": "Why this evidence supports the quote"
+              }
+            ],
+            "supportingSources": [
+              {
+                "source": "Source Name",
+                "sourceUrl": "https://example.com",
+                "citation": "Citation text",
+                "whenToUse": "When to use guidance",
+                "howToUse": "How to use guidance",
+                "generatedId": "source-id"
+              }
+            ],
+            "supportRating": "strong" | "partial" | "none",
+            "replacement": {
+              "currentText": "original text",
+              "replacementText": "suggested replacement",
+              "justification": "reason for replacement"
+            }
+          }
+        ]
+      }
+    }
+  }
+}`}
+                            </pre>
+                          </div>
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (error && error !== "unsupported") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-2xl">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <div className="text-6xl">⚠️</div>
+              <div>
+                <h3 className="text-lg font-medium text-red-600">Data Validation Error</h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  The received data doesn't match the expected schema:
+                </p>
+                <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
+                  <p className="text-xs text-red-700 dark:text-red-300 font-mono">{error}</p>
+                </div>
+              </div>
+
+              {rawInput && (
+                <div className="mt-6 text-left">
+                  <Collapsible open={debugExpanded} onOpenChange={setDebugExpanded}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full">
+                        {debugExpanded ? (
+                          <>
+                            <ChevronDown className="h-4 w-4 mr-2" />
+                            Hide Debug Info
+                          </>
+                        ) : (
+                          <>
+                            <ChevronRight className="h-4 w-4 mr-2" />
+                            Show Debug Info
+                          </>
+                        )}
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium">Received Input Data:</h4>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(JSON.stringify(rawInput, null, 2))}
+                          >
+                            <Copy className="h-4 w-4 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
+                        <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-md border">
+                          <pre className="text-xs overflow-auto max-h-60 whitespace-pre-wrap">
+                            {JSON.stringify(rawInput, null, 2)}
+                          </pre>
+                        </div>
+
+                        <div className="mt-4">
+                          <h4 className="text-sm font-medium mb-2">Expected Braintrust Format:</h4>
+                          <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md border border-blue-200 dark:border-blue-800">
+                            <pre className="text-xs overflow-auto max-h-40 whitespace-pre-wrap">
+                              {`{
+  "type": "data",
+  "data": {
+    "span_id": "...",
+    "output": {
+      "letter": "Clinical letter text...",
+      "fullAnnotationReport": {
+        "snippets": [
+          {
+            "quote": "text from letter",
+            "type": "quote" | "statement" | "source",
+            "category": "lab" | "vital" | "imaging" | "cdi_query" | "note" | "med" | "other",
+            "evidence": [
+              {
+                "id": "optional-id",
+                "type": "Evidence Type",
+                "timestamp": "2023-05-15T08:30:00Z",
+                "result": "Evidence result text",
+                "reasoning": "Why this evidence supports the quote"
+              }
+            ],
+            "supportingSources": [
+              {
+                "source": "Source Name",
+                "sourceUrl": "https://example.com",
+                "citation": "Citation text",
+                "whenToUse": "When to use guidance",
+                "howToUse": "How to use guidance",
+                "generatedId": "source-id"
               }
             ],
             "supportRating": "strong" | "partial" | "none",
