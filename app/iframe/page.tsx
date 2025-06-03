@@ -7,109 +7,138 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronRight, Copy } from "lucide-react"
+import { ChevronDown, ChevronRight, Copy, AlertTriangle } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
-// Zod schemas for message validation
-export const settingsMessageSchema = z.object({
-  type: z.literal("settings"),
-  settings: z.object({
-    theme: z.enum(["light", "dark"]),
-    readOnly: z.boolean(),
-  }),
-})
+// Zod schemas for message validation - made permissive with .passthrough()
+export const settingsMessageSchema = z
+  .object({
+    type: z.literal("settings"),
+    settings: z
+      .object({
+        theme: z.enum(["light", "dark"]),
+        readOnly: z.boolean(),
+      })
+      .passthrough(), // Allow extra fields
+  })
+  .passthrough()
 
-// Schema for Braintrust data format
-export const braintrustDataMessageSchema = z.object({
-  type: z.literal("data"),
-  data: z.object({
-    span_id: z.string(),
-    output: z.object({
-      letter: z.string(),
-      fullAnnotationReport: z.object({
-        snippets: z.array(
-          z.object({
-            quote: z.string(),
-            type: z.enum(["quote", "statement", "source"]),
-            category: z.enum(["lab", "vital", "imaging", "cdi_query", "note", "med", "other"]),
-            supportingSources: z
-              .array(
-                z.object({
-                  source: z.string(),
-                  sourceUrl: z.string().optional(),
-                  citation: z.string(),
-                  whenToUse: z.string().optional(),
-                  howToUse: z.string().optional(),
-                  generatedId: z.string(),
-                }),
-              )
-              .optional(),
-            evidence: z.array(
-              z.object({
-                id: z.string().optional(),
-                type: z.string(),
-                timestamp: z.string(),
-                hideTimestamp: z.boolean().optional(),
-                hideResult: z.boolean().optional(),
-                resultLabel: z.string().optional(),
-                result: z.string(),
-                reference: z.string().optional(),
-                reasoning: z.string().optional(),
-                timezone: z.string().optional(),
-                generatedId: z.string().optional(),
-              }),
-            ),
-            supportRating: z.enum(["strong", "partial", "none"]),
-            replacement: z
-              .object({
-                currentText: z.string(),
-                replacementText: z.string(),
-                justification: z.string(),
-              })
-              .optional(),
-          }),
-        ),
-      }),
-    }),
-  }),
-})
-
-// Legacy direct format schema (for backwards compatibility)
-export const directDataMessageSchema = z.object({
-  type: z.literal("data"),
-  data: z.object({
-    letter: z.string(),
-    snippets: z.array(
-      z.object({
-        quote: z.string(),
-        type: z.enum(["quote", "statement"]),
-        category: z.enum(["lab", "vital", "imaging", "cdi_query", "note", "med", "other"]),
-        evidence: z.array(
-          z.object({
-            id: z.string().optional(),
-            type: z.string(),
-            timestamp: z.string(),
-            hideTimestamp: z.boolean().optional(),
-            hideResult: z.boolean().optional(),
-            resultLabel: z.string().optional(),
-            result: z.string(),
-            reference: z.string().optional(),
-            reasoning: z.string().optional(),
-            timezone: z.string().optional(),
-            generatedId: z.string().optional(),
-          }),
-        ),
-        supportRating: z.enum(["strong", "partial", "none"]),
-        replacement: z
+// Schema for Braintrust data format - made permissive
+export const braintrustDataMessageSchema = z
+  .object({
+    type: z.literal("data"),
+    data: z
+      .object({
+        span_id: z.string(),
+        output: z
           .object({
-            currentText: z.string(),
-            replacementText: z.string(),
-            justification: z.string(),
+            letter: z.string(),
+            fullAnnotationReport: z
+              .object({
+                snippets: z.array(
+                  z
+                    .object({
+                      quote: z.string(),
+                      type: z.enum(["quote", "statement", "source"]),
+                      category: z.enum(["lab", "vital", "imaging", "cdi_query", "note", "med", "other"]),
+                      supportingSources: z
+                        .array(
+                          z
+                            .object({
+                              source: z.string(),
+                              sourceUrl: z.string().optional(),
+                              citation: z.string(),
+                              whenToUse: z.string().optional(),
+                              howToUse: z.string().optional(),
+                              generatedId: z.string(),
+                            })
+                            .passthrough(), // Allow extra fields in supporting sources
+                        )
+                        .optional(),
+                      evidence: z.array(
+                        z
+                          .object({
+                            id: z.string().optional(),
+                            type: z.string(),
+                            timestamp: z.string(),
+                            hideTimestamp: z.boolean().optional(),
+                            hideResult: z.boolean().optional(),
+                            resultLabel: z.string().optional(),
+                            result: z.string(),
+                            reference: z.string().optional(),
+                            reasoning: z.string().optional(),
+                            timezone: z.string().optional(),
+                            generatedId: z.string().optional(),
+                          })
+                          .passthrough(), // Allow extra fields in evidence
+                      ),
+                      supportRating: z.enum(["strong", "partial", "none"]),
+                      replacement: z
+                        .object({
+                          currentText: z.string(),
+                          replacementText: z.string(),
+                          justification: z.string(),
+                        })
+                        .passthrough() // Allow extra fields in replacement
+                        .optional(),
+                    })
+                    .passthrough(), // Allow extra fields in snippets
+                ),
+              })
+              .passthrough(), // Allow extra fields in fullAnnotationReport
           })
-          .optional(),
-      }),
-    ),
-  }),
-})
+          .passthrough(), // Allow extra fields in output
+      })
+      .passthrough(), // Allow extra fields in data
+  })
+  .passthrough()
+
+// Legacy direct format schema (for backwards compatibility) - made permissive
+export const directDataMessageSchema = z
+  .object({
+    type: z.literal("data"),
+    data: z
+      .object({
+        letter: z.string(),
+        snippets: z.array(
+          z
+            .object({
+              quote: z.string(),
+              type: z.enum(["quote", "statement"]),
+              category: z.enum(["lab", "vital", "imaging", "cdi_query", "note", "med", "other"]),
+              evidence: z.array(
+                z
+                  .object({
+                    id: z.string().optional(),
+                    type: z.string(),
+                    timestamp: z.string(),
+                    hideTimestamp: z.boolean().optional(),
+                    hideResult: z.boolean().optional(),
+                    resultLabel: z.string().optional(),
+                    result: z.string(),
+                    reference: z.string().optional(),
+                    reasoning: z.string().optional(),
+                    timezone: z.string().optional(),
+                    generatedId: z.string().optional(),
+                  })
+                  .passthrough(),
+              ),
+              supportRating: z.enum(["strong", "partial", "none"]),
+              replacement: z
+                .object({
+                  currentText: z.string(),
+                  replacementText: z.string(),
+                  justification: z.string(),
+                })
+                .passthrough()
+                .optional(),
+            })
+            .passthrough(),
+        ),
+      })
+      .passthrough(),
+  })
+  .passthrough()
 
 export const messageSchema = z.union([settingsMessageSchema, braintrustDataMessageSchema, directDataMessageSchema])
 
@@ -148,6 +177,7 @@ export default function IframePage() {
   const [theme, setTheme] = useState<"light" | "dark">("light")
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [validationError, setValidationError] = useState<z.ZodError | null>(null)
   const [rawInput, setRawInput] = useState<any>(null)
   const [debugExpanded, setDebugExpanded] = useState(false)
 
@@ -164,6 +194,18 @@ export default function IframePage() {
       letter: braintrustData.output.letter,
       snippets: braintrustData.output.fullAnnotationReport.snippets,
     }
+  }
+
+  const formatZodError = (zodError: z.ZodError) => {
+    return zodError.issues.map((issue, index) => ({
+      index,
+      path: issue.path.join(".") || "root",
+      message: issue.message,
+      code: issue.code,
+      expected: "expected" in issue ? issue.expected : undefined,
+      received: "received" in issue ? issue.received : undefined,
+      options: "options" in issue ? issue.options : undefined,
+    }))
   }
 
   useEffect(() => {
@@ -196,14 +238,15 @@ export default function IframePage() {
           setData(mappedData)
           setIsLoading(false)
           setError(null)
+          setValidationError(null)
         }
       } catch (error) {
         console.warn("Validation failed:", error)
 
         // Capture the Zod error details
         if (error instanceof z.ZodError) {
-          const errorDetails = error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")
-          setError(`Validation error: ${errorDetails}`)
+          setValidationError(error)
+          setError("validation")
         } else {
           setError("unsupported")
         }
@@ -249,6 +292,208 @@ export default function IframePage() {
               <div className="text-center">
                 <h3 className="text-lg font-medium">Loading Annotation Report</h3>
                 <p className="text-sm text-muted-foreground mt-1">Checking data format...</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (error === "validation" && validationError) {
+    const formattedErrors = formatZodError(validationError)
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-4xl">
+          <CardContent className="pt-6">
+            <div className="space-y-6">
+              <div className="text-center">
+                <div className="text-6xl mb-4">⚠️</div>
+                <h3 className="text-lg font-medium text-red-600">Data Validation Failed</h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  The received data doesn't match the expected schema. See details below:
+                </p>
+              </div>
+
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Found {formattedErrors.length} validation error{formattedErrors.length !== 1 ? "s" : ""}
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium">Validation Errors:</h4>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {formattedErrors.map((error) => (
+                    <Card key={error.index} className="border-red-200 dark:border-red-800">
+                      <CardContent className="p-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-red-700 dark:text-red-300">
+                              Error #{error.index + 1}
+                            </span>
+                            <span className="text-xs bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
+                              {error.code}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="text-xs text-muted-foreground">Path:</span>
+                            <code className="ml-2 text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">
+                              {error.path || "root"}
+                            </code>
+                          </div>
+
+                          <div>
+                            <span className="text-xs text-muted-foreground">Message:</span>
+                            <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error.message}</p>
+                          </div>
+
+                          {error.expected && (
+                            <div>
+                              <span className="text-xs text-muted-foreground">Expected:</span>
+                              <code className="ml-2 text-xs bg-green-100 dark:bg-green-900/30 px-1 py-0.5 rounded">
+                                {Array.isArray(error.expected) ? error.expected.join(" | ") : String(error.expected)}
+                              </code>
+                            </div>
+                          )}
+
+                          {error.received !== undefined && (
+                            <div>
+                              <span className="text-xs text-muted-foreground">Received:</span>
+                              <code className="ml-2 text-xs bg-red-100 dark:bg-red-900/30 px-1 py-0.5 rounded">
+                                {String(error.received)}
+                              </code>
+                            </div>
+                          )}
+
+                          {error.options && (
+                            <div>
+                              <span className="text-xs text-muted-foreground">Valid options:</span>
+                              <code className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 px-1 py-0.5 rounded">
+                                {Array.isArray(error.options) ? error.options.join(", ") : String(error.options)}
+                              </code>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              <div className="text-left">
+                <Collapsible open={debugExpanded} onOpenChange={setDebugExpanded}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-full">
+                      {debugExpanded ? (
+                        <>
+                          <ChevronDown className="h-4 w-4 mr-2" />
+                          Hide Raw Data & Schema
+                        </>
+                      ) : (
+                        <>
+                          <ChevronRight className="h-4 w-4 mr-2" />
+                          Show Raw Data & Schema
+                        </>
+                      )}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-4">
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-sm font-medium">Complete Zod Error Object:</h4>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(JSON.stringify(validationError, null, 2))}
+                          >
+                            <Copy className="h-4 w-4 mr-1" />
+                            Copy Error
+                          </Button>
+                        </div>
+                        <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-md border border-red-200 dark:border-red-800">
+                          <pre className="text-xs overflow-auto max-h-60 whitespace-pre-wrap">
+                            {JSON.stringify(validationError, null, 2)}
+                          </pre>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-sm font-medium">Received Input Data:</h4>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(JSON.stringify(rawInput, null, 2))}
+                          >
+                            <Copy className="h-4 w-4 mr-1" />
+                            Copy Input
+                          </Button>
+                        </div>
+                        <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-md border">
+                          <pre className="text-xs overflow-auto max-h-60 whitespace-pre-wrap">
+                            {JSON.stringify(rawInput, null, 2)}
+                          </pre>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-medium mb-2">Expected Braintrust Format:</h4>
+                        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md border border-blue-200 dark:border-blue-800">
+                          <pre className="text-xs overflow-auto max-h-40 whitespace-pre-wrap">
+                            {`{
+  "type": "data",
+  "data": {
+    "span_id": "...",
+    "output": {
+      "letter": "Clinical letter text...",
+      "fullAnnotationReport": {
+        "snippets": [
+          {
+            "quote": "text from letter",
+            "type": "quote" | "statement" | "source",
+            "category": "lab" | "vital" | "imaging" | "cdi_query" | "note" | "med" | "other",
+            "evidence": [
+              {
+                "id": "optional-id",
+                "type": "Evidence Type",
+                "timestamp": "2023-05-15T08:30:00Z",
+                "result": "Evidence result text",
+                "reasoning": "Why this evidence supports the quote"
+              }
+            ],
+            "supportingSources": [
+              {
+                "source": "Source Name",
+                "sourceUrl": "https://example.com",
+                "citation": "Citation text",
+                "whenToUse": "When to use guidance",
+                "howToUse": "How to use guidance",
+                "generatedId": "source-id"
+              }
+            ],
+            "supportRating": "strong" | "partial" | "none",
+            "replacement": {
+              "currentText": "original text",
+              "replacementText": "suggested replacement",
+              "justification": "reason for replacement"
+            }
+          }
+        ]
+      }
+    }
+  }
+}`}
+                          </pre>
+                        </div>
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             </div>
           </CardContent>
@@ -309,173 +554,6 @@ export default function IframePage() {
                           <pre className="text-xs overflow-auto max-h-60 whitespace-pre-wrap">
                             {JSON.stringify(rawInput, null, 2)}
                           </pre>
-                        </div>
-
-                        <div className="mt-4">
-                          <h4 className="text-sm font-medium mb-2">Expected Braintrust Format:</h4>
-                          <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md border border-blue-200 dark:border-blue-800">
-                            <pre className="text-xs overflow-auto max-h-40 whitespace-pre-wrap">
-                              {`{
-  "type": "data",
-  "data": {
-    "span_id": "...",
-    "output": {
-      "letter": "Clinical letter text...",
-      "fullAnnotationReport": {
-        "snippets": [
-          {
-            "quote": "text from letter",
-            "type": "quote" | "statement" | "source",
-            "category": "lab" | "vital" | "imaging" | "cdi_query" | "note" | "med" | "other",
-            "evidence": [
-              {
-                "id": "optional-id",
-                "type": "Evidence Type",
-                "timestamp": "2023-05-15T08:30:00Z",
-                "result": "Evidence result text",
-                "reasoning": "Why this evidence supports the quote"
-              }
-            ],
-            "supportingSources": [
-              {
-                "source": "Source Name",
-                "sourceUrl": "https://example.com",
-                "citation": "Citation text",
-                "whenToUse": "When to use guidance",
-                "howToUse": "How to use guidance",
-                "generatedId": "source-id"
-              }
-            ],
-            "supportRating": "strong" | "partial" | "none",
-            "replacement": {
-              "currentText": "original text",
-              "replacementText": "suggested replacement",
-              "justification": "reason for replacement"
-            }
-          }
-        ]
-      }
-    }
-  }
-}`}
-                            </pre>
-                          </div>
-                        </div>
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (error && error !== "unsupported") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-2xl">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-4">
-              <div className="text-6xl">⚠️</div>
-              <div>
-                <h3 className="text-lg font-medium text-red-600">Data Validation Error</h3>
-                <p className="text-sm text-muted-foreground mt-2">
-                  The received data doesn't match the expected schema:
-                </p>
-                <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
-                  <p className="text-xs text-red-700 dark:text-red-300 font-mono">{error}</p>
-                </div>
-              </div>
-
-              {rawInput && (
-                <div className="mt-6 text-left">
-                  <Collapsible open={debugExpanded} onOpenChange={setDebugExpanded}>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full">
-                        {debugExpanded ? (
-                          <>
-                            <ChevronDown className="h-4 w-4 mr-2" />
-                            Hide Debug Info
-                          </>
-                        ) : (
-                          <>
-                            <ChevronRight className="h-4 w-4 mr-2" />
-                            Show Debug Info
-                          </>
-                        )}
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="mt-4">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-medium">Received Input Data:</h4>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => copyToClipboard(JSON.stringify(rawInput, null, 2))}
-                          >
-                            <Copy className="h-4 w-4 mr-1" />
-                            Copy
-                          </Button>
-                        </div>
-                        <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-md border">
-                          <pre className="text-xs overflow-auto max-h-60 whitespace-pre-wrap">
-                            {JSON.stringify(rawInput, null, 2)}
-                          </pre>
-                        </div>
-
-                        <div className="mt-4">
-                          <h4 className="text-sm font-medium mb-2">Expected Braintrust Format:</h4>
-                          <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md border border-blue-200 dark:border-blue-800">
-                            <pre className="text-xs overflow-auto max-h-40 whitespace-pre-wrap">
-                              {`{
-  "type": "data",
-  "data": {
-    "span_id": "...",
-    "output": {
-      "letter": "Clinical letter text...",
-      "fullAnnotationReport": {
-        "snippets": [
-          {
-            "quote": "text from letter",
-            "type": "quote" | "statement" | "source",
-            "category": "lab" | "vital" | "imaging" | "cdi_query" | "note" | "med" | "other",
-            "evidence": [
-              {
-                "id": "optional-id",
-                "type": "Evidence Type",
-                "timestamp": "2023-05-15T08:30:00Z",
-                "result": "Evidence result text",
-                "reasoning": "Why this evidence supports the quote"
-              }
-            ],
-            "supportingSources": [
-              {
-                "source": "Source Name",
-                "sourceUrl": "https://example.com",
-                "citation": "Citation text",
-                "whenToUse": "When to use guidance",
-                "howToUse": "How to use guidance",
-                "generatedId": "source-id"
-              }
-            ],
-            "supportRating": "strong" | "partial" | "none",
-            "replacement": {
-              "currentText": "original text",
-              "replacementText": "suggested replacement",
-              "justification": "reason for replacement"
-            }
-          }
-        ]
-      }
-    }
-  }
-}`}
-                            </pre>
-                          </div>
                         </div>
                       </div>
                     </CollapsibleContent>
