@@ -10,6 +10,31 @@ import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronRight, Copy, AlertTriangle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
+// Appeal Plan Schema
+export const AppealPlanSchema = z
+  .object({
+    keyArguments: z.array(
+      z
+        .object({
+          title: z.string(),
+          evidenceIds: z.array(z.string()),
+          narrative: z.string(),
+          supportingCitationIds: z.array(z.string()),
+        })
+        .passthrough(),
+    ),
+    anticipatedCounterarguments: z.array(
+      z
+        .object({
+          counterargument: z.string(),
+          refutingEvidenceIds: z.array(z.string()),
+          refutationNarrative: z.string(),
+        })
+        .passthrough(),
+    ),
+  })
+  .passthrough()
+
 // Zod schemas for message validation - made permissive with .passthrough()
 export const settingsMessageSchema = z
   .object({
@@ -86,6 +111,7 @@ export const braintrustDataMessageSchema = z
                 ),
               })
               .passthrough(), // Allow extra fields in fullAnnotationReport
+            plan: AppealPlanSchema.optional(), // Add optional plan
           })
           .passthrough(), // Allow extra fields in output
       })
@@ -135,6 +161,7 @@ export const directDataMessageSchema = z
             })
             .passthrough(),
         ),
+        plan: AppealPlanSchema.optional(), // Add optional plan to legacy format too
       })
       .passthrough(),
   })
@@ -143,6 +170,20 @@ export const directDataMessageSchema = z
 export const messageSchema = z.union([settingsMessageSchema, braintrustDataMessageSchema, directDataMessageSchema])
 
 export type Message = z.infer<typeof messageSchema>
+
+interface AppealPlan {
+  keyArguments: Array<{
+    title: string
+    evidenceIds: string[]
+    narrative: string
+    supportingCitationIds: string[]
+  }>
+  anticipatedCounterarguments: Array<{
+    counterargument: string
+    refutingEvidenceIds: string[]
+    refutationNarrative: string
+  }>
+}
 
 interface AnnotationData {
   letter: string
@@ -170,6 +211,7 @@ interface AnnotationData {
       justification: string
     }
   }>
+  plan?: AppealPlan
 }
 
 export default function IframePage() {
@@ -193,6 +235,7 @@ export default function IframePage() {
     return {
       letter: braintrustData.output.letter,
       snippets: braintrustData.output.fullAnnotationReport.snippets,
+      plan: braintrustData.output.plan,
     }
   }
 
@@ -457,31 +500,27 @@ export default function IframePage() {
             "quote": "text from letter",
             "type": "quote" | "statement" | "source",
             "category": "lab" | "vital" | "imaging" | "cdi_query" | "note" | "med" | "other",
-            "evidence": [
-              {
-                "id": "optional-id",
-                "type": "Evidence Type",
-                "timestamp": "2023-05-15T08:30:00Z",
-                "result": "Evidence result text",
-                "reasoning": "Why this evidence supports the quote"
-              }
-            ],
-            "supportingSources": [
-              {
-                "source": "Source Name",
-                "sourceUrl": "https://example.com",
-                "citation": "Citation text",
-                "whenToUse": "When to use guidance",
-                "howToUse": "How to use guidance",
-                "generatedId": "source-id"
-              }
-            ],
+            "evidence": [...],
+            "supportingSources": [...],
             "supportRating": "strong" | "partial" | "none",
-            "replacement": {
-              "currentText": "original text",
-              "replacementText": "suggested replacement",
-              "justification": "reason for replacement"
-            }
+            "replacement": {...}
+          }
+        ]
+      },
+      "plan": {
+        "keyArguments": [
+          {
+            "title": "Argument title",
+            "evidenceIds": ["ev-1", "ev-2"],
+            "narrative": "Argument narrative",
+            "supportingCitationIds": ["cite-1", "cite-2"]
+          }
+        ],
+        "anticipatedCounterarguments": [
+          {
+            "counterargument": "Counter argument text",
+            "refutingEvidenceIds": ["ev-3"],
+            "refutationNarrative": "Refutation narrative"
           }
         ]
       }
@@ -608,7 +647,7 @@ export default function IframePage() {
           <p className="text-sm text-muted-foreground">Annotation report loaded in Braintrust iframe</p>
         </div>
 
-        <AnnotationReportReview letter={data.letter} snippets={data.snippets} />
+        <AnnotationReportReview letter={data.letter} snippets={data.snippets} plan={data.plan} />
       </div>
     </div>
   )

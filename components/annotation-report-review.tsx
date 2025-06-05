@@ -24,6 +24,9 @@ import {
   Replace,
   ExternalLink,
   BookOpen,
+  Target,
+  Shield,
+  Lightbulb,
 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { AnnotationReportLetterView } from "./annotation-report-letter-view"
@@ -65,12 +68,27 @@ interface AnnotationSnippet {
   }
 }
 
+interface AppealPlan {
+  keyArguments: Array<{
+    title: string
+    evidenceIds: string[]
+    narrative: string
+    supportingCitationIds: string[]
+  }>
+  anticipatedCounterarguments: Array<{
+    counterargument: string
+    refutingEvidenceIds: string[]
+    refutationNarrative: string
+  }>
+}
+
 interface AnnotationReportReviewProps {
   letter: string
   snippets: AnnotationSnippet[]
+  plan?: AppealPlan
 }
 
-export function AnnotationReportReview({ letter, snippets }: AnnotationReportReviewProps) {
+export function AnnotationReportReview({ letter, snippets, plan }: AnnotationReportReviewProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [activeTab, setActiveTab] = useState("overview")
   const [selectedSnippetIndex, setSelectedSnippetIndex] = useState<number | null>(null)
@@ -182,6 +200,32 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
     }
   }
 
+  // Find evidence by ID
+  const findEvidenceById = (evidenceId: string) => {
+    for (const snippet of snippets) {
+      for (const evidence of snippet.evidence) {
+        if (evidence.id === evidenceId || evidence.generatedId === evidenceId) {
+          return evidence
+        }
+      }
+    }
+    return null
+  }
+
+  // Find supporting source by ID
+  const findSupportingSourceById = (citationId: string) => {
+    for (const snippet of snippets) {
+      if (snippet.supportingSources) {
+        for (const source of snippet.supportingSources) {
+          if (source.generatedId === citationId) {
+            return source
+          }
+        }
+      }
+    }
+    return null
+  }
+
   // Get summary statistics
   const getSummaryStats = () => {
     const categoryCount = snippets.reduce(
@@ -228,6 +272,7 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="letter">Letter View</TabsTrigger>
           <TabsTrigger value="review">Review Snippets</TabsTrigger>
+          {plan && <TabsTrigger value="plan">Appeal Plan</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="overview">
@@ -327,6 +372,30 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
                 <p className="text-sm text-muted-foreground">snippets have suggested replacements</p>
               </CardContent>
             </Card>
+
+            {plan && (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Key Arguments</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{plan.keyArguments.length}</div>
+                    <p className="text-sm text-muted-foreground">strategic arguments planned</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Counterarguments</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{plan.anticipatedCounterarguments.length}</div>
+                    <p className="text-sm text-muted-foreground">anticipated and addressed</p>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
         </TabsContent>
 
@@ -601,6 +670,195 @@ export function AnnotationReportReview({ letter, snippets }: AnnotationReportRev
             </CardFooter>
           </Card>
         </TabsContent>
+
+        {plan && (
+          <TabsContent value="plan">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Key Arguments ({plan.keyArguments.length})
+                  </CardTitle>
+                  <CardDescription>Strategic arguments for the appeal</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[500px]">
+                    <div className="space-y-6">
+                      {plan.keyArguments.map((argument, index) => (
+                        <Card key={index} className="border-l-4 border-l-blue-500">
+                          <CardContent className="p-4">
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline">Argument {index + 1}</Badge>
+                                <h3 className="font-medium">{argument.title}</h3>
+                              </div>
+
+                              <div>
+                                <h4 className="text-sm font-medium mb-2">Narrative:</h4>
+                                <div className="text-sm p-3 bg-gray-50 dark:bg-gray-800 rounded border">
+                                  {argument.narrative}
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
+                                    <FileText className="h-3 w-3" />
+                                    Evidence ({argument.evidenceIds.length})
+                                  </h4>
+                                  <div className="space-y-2">
+                                    {argument.evidenceIds.map((evidenceId, eIndex) => {
+                                      const evidence = findEvidenceById(evidenceId)
+                                      return (
+                                        <div
+                                          key={eIndex}
+                                          className="text-xs p-2 bg-blue-50 dark:bg-blue-900/20 rounded border"
+                                        >
+                                          <div className="flex items-center justify-between mb-1">
+                                            <Badge variant="outline" className="text-xs">
+                                              {evidenceId}
+                                            </Badge>
+                                            {evidence && <span className="text-muted-foreground">{evidence.type}</span>}
+                                          </div>
+                                          {evidence ? (
+                                            <p className="text-xs">{evidence.result.substring(0, 100)}...</p>
+                                          ) : (
+                                            <p className="text-xs text-red-500">Evidence not found</p>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
+                                    <BookOpen className="h-3 w-3" />
+                                    Citations ({argument.supportingCitationIds.length})
+                                  </h4>
+                                  <div className="space-y-2">
+                                    {argument.supportingCitationIds.map((citationId, cIndex) => {
+                                      const source = findSupportingSourceById(citationId)
+                                      return (
+                                        <div
+                                          key={cIndex}
+                                          className="text-xs p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded border"
+                                        >
+                                          <div className="flex items-center justify-between mb-1">
+                                            <Badge variant="outline" className="text-xs">
+                                              {citationId}
+                                            </Badge>
+                                            {source?.sourceUrl && (
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-4 w-4 p-0"
+                                                onClick={() => window.open(source.sourceUrl, "_blank")}
+                                              >
+                                                <ExternalLink className="h-3 w-3" />
+                                              </Button>
+                                            )}
+                                          </div>
+                                          {source ? (
+                                            <div>
+                                              <p className="font-medium text-xs">{source.source}</p>
+                                              <p className="text-xs text-muted-foreground">
+                                                {source.citation.substring(0, 100)}...
+                                              </p>
+                                            </div>
+                                          ) : (
+                                            <p className="text-xs text-red-500">Citation not found</p>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Anticipated Counterarguments ({plan.anticipatedCounterarguments.length})
+                  </CardTitle>
+                  <CardDescription>Potential objections and prepared refutations</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[400px]">
+                    <div className="space-y-6">
+                      {plan.anticipatedCounterarguments.map((counter, index) => (
+                        <Card key={index} className="border-l-4 border-l-orange-500">
+                          <CardContent className="p-4">
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline">Counter {index + 1}</Badge>
+                                <Lightbulb className="h-4 w-4 text-orange-500" />
+                              </div>
+
+                              <div>
+                                <h4 className="text-sm font-medium mb-2">Counterargument:</h4>
+                                <div className="text-sm p-3 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-800">
+                                  {counter.counterargument}
+                                </div>
+                              </div>
+
+                              <div>
+                                <h4 className="text-sm font-medium mb-2">Refutation:</h4>
+                                <div className="text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
+                                  {counter.refutationNarrative}
+                                </div>
+                              </div>
+
+                              <div>
+                                <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
+                                  <FileText className="h-3 w-3" />
+                                  Refuting Evidence ({counter.refutingEvidenceIds.length})
+                                </h4>
+                                <div className="space-y-2">
+                                  {counter.refutingEvidenceIds.map((evidenceId, eIndex) => {
+                                    const evidence = findEvidenceById(evidenceId)
+                                    return (
+                                      <div
+                                        key={eIndex}
+                                        className="text-xs p-2 bg-green-50 dark:bg-green-900/20 rounded border"
+                                      >
+                                        <div className="flex items-center justify-between mb-1">
+                                          <Badge variant="outline" className="text-xs">
+                                            {evidenceId}
+                                          </Badge>
+                                          {evidence && <span className="text-muted-foreground">{evidence.type}</span>}
+                                        </div>
+                                        {evidence ? (
+                                          <p className="text-xs">{evidence.result.substring(0, 100)}...</p>
+                                        ) : (
+                                          <p className="text-xs text-red-500">Evidence not found</p>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )
