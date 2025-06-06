@@ -335,8 +335,16 @@ export default function IframePage() {
 
     window.addEventListener("message", handleMessage)
 
-    // Send ready message to parent
-    window.parent.postMessage({ type: "ready" }, "*")
+    // Send ready message to parent only once
+    const sendReady = () => {
+      try {
+        window.parent.postMessage({ type: "ready" }, "*")
+      } catch (e) {
+        console.warn("Could not send ready message:", e)
+      }
+    }
+
+    sendReady()
 
     // Set up a timeout to show not supported message if no valid message is received
     const timeout = setTimeout(() => {
