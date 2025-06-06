@@ -30,6 +30,7 @@ import {
 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { AnnotationReportLetterView } from "./annotation-report-letter-view"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 
 interface AppendixCitation {
   id?: string
@@ -683,105 +684,139 @@ export function AnnotationReportReview({ letter, snippets, plan }: AnnotationRep
                   <CardDescription>Strategic arguments for the appeal</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[500px]">
-                    <div className="space-y-6">
-                      {plan.keyArguments.map((argument, index) => (
-                        <Card key={index} className="border-l-4 border-l-blue-500">
-                          <CardContent className="p-4">
-                            <div className="space-y-4">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline">Argument {index + 1}</Badge>
-                                <h3 className="font-medium">{argument.title}</h3>
-                              </div>
-
-                              <div>
-                                <h4 className="text-sm font-medium mb-2">Narrative:</h4>
-                                <div className="text-sm p-3 bg-gray-50 dark:bg-gray-800 rounded border">
-                                  {argument.narrative}
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Accordion type="single" collapsible className="w-full">
+                    {plan.keyArguments.map((argument, index) => (
+                      <AccordionItem key={index} value={`argument-${index}`}>
+                        <AccordionTrigger className="text-left">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">Argument {index + 1}</Badge>
+                            <span className="font-medium">{argument.title}</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <Card className="border-l-4 border-l-blue-500 mt-2">
+                            <CardContent className="p-4">
+                              <div className="space-y-4">
                                 <div>
-                                  <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
-                                    <FileText className="h-3 w-3" />
-                                    Evidence ({argument.evidenceIds.length})
-                                  </h4>
-                                  <div className="space-y-2">
-                                    {argument.evidenceIds.map((evidenceId, eIndex) => {
-                                      const evidence = findEvidenceById(evidenceId)
-                                      return (
-                                        <div
-                                          key={eIndex}
-                                          className="text-xs p-2 bg-blue-50 dark:bg-blue-900/20 rounded border"
-                                        >
-                                          <div className="flex items-center justify-between mb-1">
-                                            <Badge variant="outline" className="text-xs">
-                                              {evidenceId}
-                                            </Badge>
-                                            {evidence && <span className="text-muted-foreground">{evidence.type}</span>}
-                                          </div>
-                                          {evidence ? (
-                                            <p className="text-xs">{evidence.result.substring(0, 100)}...</p>
-                                          ) : (
-                                            <p className="text-xs text-red-500">Evidence not found</p>
-                                          )}
-                                        </div>
-                                      )
-                                    })}
+                                  <h4 className="text-sm font-medium mb-2">Narrative:</h4>
+                                  <div className="text-sm p-3 bg-gray-50 dark:bg-gray-800 rounded border">
+                                    {argument.narrative}
                                   </div>
                                 </div>
 
-                                <div>
-                                  <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
-                                    <BookOpen className="h-3 w-3" />
-                                    Citations ({argument.supportingCitationIds.length})
-                                  </h4>
-                                  <div className="space-y-2">
-                                    {argument.supportingCitationIds.map((citationId, cIndex) => {
-                                      const source = findSupportingSourceById(citationId)
-                                      return (
-                                        <div
-                                          key={cIndex}
-                                          className="text-xs p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded border"
-                                        >
-                                          <div className="flex items-center justify-between mb-1">
-                                            <Badge variant="outline" className="text-xs">
-                                              {citationId}
-                                            </Badge>
-                                            {source?.sourceUrl && (
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-4 w-4 p-0"
-                                                onClick={() => window.open(source.sourceUrl, "_blank")}
-                                              >
-                                                <ExternalLink className="h-3 w-3" />
-                                              </Button>
-                                            )}
-                                          </div>
-                                          {source ? (
-                                            <div>
-                                              <p className="font-medium text-xs">{source.source}</p>
-                                              <p className="text-xs text-muted-foreground">
-                                                {source.citation.substring(0, 100)}...
-                                              </p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
+                                      <FileText className="h-3 w-3" />
+                                      Evidence ({argument.evidenceIds.length})
+                                    </h4>
+                                    <ScrollArea className="h-[200px]">
+                                      <div className="space-y-2">
+                                        {argument.evidenceIds.map((evidenceId, eIndex) => {
+                                          const evidence = findEvidenceById(evidenceId)
+                                          return (
+                                            <div
+                                              key={eIndex}
+                                              className="text-xs p-2 bg-blue-50 dark:bg-blue-900/20 rounded border"
+                                            >
+                                              <div className="flex items-center justify-between mb-1">
+                                                <Badge variant="outline" className="text-xs">
+                                                  {evidenceId}
+                                                </Badge>
+                                                {evidence && (
+                                                  <span className="text-muted-foreground">{evidence.type}</span>
+                                                )}
+                                              </div>
+                                              {evidence ? (
+                                                <div>
+                                                  <p className="text-xs font-medium mb-1">
+                                                    {evidence.resultLabel || "Result:"}
+                                                  </p>
+                                                  <p className="text-xs">{evidence.result}</p>
+                                                  {evidence.reasoning && (
+                                                    <div className="mt-1">
+                                                      <p className="text-xs font-medium">Reasoning:</p>
+                                                      <p className="text-xs text-muted-foreground">
+                                                        {evidence.reasoning}
+                                                      </p>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ) : (
+                                                <p className="text-xs text-red-500">Evidence not found</p>
+                                              )}
                                             </div>
-                                          ) : (
-                                            <p className="text-xs text-red-500">Citation not found</p>
-                                          )}
-                                        </div>
-                                      )
-                                    })}
+                                          )
+                                        })}
+                                      </div>
+                                    </ScrollArea>
+                                  </div>
+
+                                  <div>
+                                    <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
+                                      <BookOpen className="h-3 w-3" />
+                                      Citations ({argument.supportingCitationIds.length})
+                                    </h4>
+                                    <ScrollArea className="h-[200px]">
+                                      <div className="space-y-2">
+                                        {argument.supportingCitationIds.map((citationId, cIndex) => {
+                                          const source = findSupportingSourceById(citationId)
+                                          return (
+                                            <div
+                                              key={cIndex}
+                                              className="text-xs p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded border"
+                                            >
+                                              <div className="flex items-center justify-between mb-1">
+                                                <Badge variant="outline" className="text-xs">
+                                                  {citationId}
+                                                </Badge>
+                                                {source?.sourceUrl && (
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-4 w-4 p-0"
+                                                    onClick={() => window.open(source.sourceUrl, "_blank")}
+                                                  >
+                                                    <ExternalLink className="h-3 w-3" />
+                                                  </Button>
+                                                )}
+                                              </div>
+                                              {source ? (
+                                                <div>
+                                                  <p className="font-medium text-xs mb-1">{source.source}</p>
+                                                  <p className="text-xs mb-1">{source.citation}</p>
+                                                  {source.whenToUse && (
+                                                    <div className="mt-1">
+                                                      <p className="text-xs font-medium">When to use:</p>
+                                                      <p className="text-xs text-muted-foreground">
+                                                        {source.whenToUse}
+                                                      </p>
+                                                    </div>
+                                                  )}
+                                                  {source.howToUse && (
+                                                    <div className="mt-1">
+                                                      <p className="text-xs font-medium">How to use:</p>
+                                                      <p className="text-xs text-muted-foreground">{source.howToUse}</p>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ) : (
+                                                <p className="text-xs text-red-500">Citation not found</p>
+                                              )}
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    </ScrollArea>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                            </CardContent>
+                          </Card>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
                 </CardContent>
               </Card>
 
@@ -794,66 +829,87 @@ export function AnnotationReportReview({ letter, snippets, plan }: AnnotationRep
                   <CardDescription>Potential objections and prepared refutations</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[400px]">
-                    <div className="space-y-6">
-                      {plan.anticipatedCounterarguments.map((counter, index) => (
-                        <Card key={index} className="border-l-4 border-l-orange-500">
-                          <CardContent className="p-4">
-                            <div className="space-y-4">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline">Counter {index + 1}</Badge>
-                                <Lightbulb className="h-4 w-4 text-orange-500" />
-                              </div>
+                  <Accordion type="single" collapsible className="w-full">
+                    {plan.anticipatedCounterarguments.map((counter, index) => (
+                      <AccordionItem key={index} value={`counter-${index}`}>
+                        <AccordionTrigger className="text-left">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">Counter {index + 1}</Badge>
+                            <Lightbulb className="h-4 w-4 text-orange-500" />
+                            <span className="font-medium">{counter.counterargument.substring(0, 80)}...</span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <Card className="border-l-4 border-l-orange-500 mt-2">
+                            <CardContent className="p-4">
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="text-sm font-medium mb-2">Counterargument:</h4>
+                                  <div className="text-sm p-3 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-800">
+                                    {counter.counterargument}
+                                  </div>
+                                </div>
 
-                              <div>
-                                <h4 className="text-sm font-medium mb-2">Counterargument:</h4>
-                                <div className="text-sm p-3 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-800">
-                                  {counter.counterargument}
+                                <div>
+                                  <h4 className="text-sm font-medium mb-2">Refutation:</h4>
+                                  <div className="text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
+                                    {counter.refutationNarrative}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
+                                    <FileText className="h-3 w-3" />
+                                    Refuting Evidence ({counter.refutingEvidenceIds.length})
+                                  </h4>
+                                  <ScrollArea className="h-[200px]">
+                                    <div className="space-y-2">
+                                      {counter.refutingEvidenceIds.map((evidenceId, eIndex) => {
+                                        const evidence = findEvidenceById(evidenceId)
+                                        return (
+                                          <div
+                                            key={eIndex}
+                                            className="text-xs p-2 bg-green-50 dark:bg-green-900/20 rounded border"
+                                          >
+                                            <div className="flex items-center justify-between mb-1">
+                                              <Badge variant="outline" className="text-xs">
+                                                {evidenceId}
+                                              </Badge>
+                                              {evidence && (
+                                                <span className="text-muted-foreground">{evidence.type}</span>
+                                              )}
+                                            </div>
+                                            {evidence ? (
+                                              <div>
+                                                <p className="text-xs font-medium mb-1">
+                                                  {evidence.resultLabel || "Result:"}
+                                                </p>
+                                                <p className="text-xs">{evidence.result}</p>
+                                                {evidence.reasoning && (
+                                                  <div className="mt-1">
+                                                    <p className="text-xs font-medium">Reasoning:</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                      {evidence.reasoning}
+                                                    </p>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              <p className="text-xs text-red-500">Evidence not found</p>
+                                            )}
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </ScrollArea>
                                 </div>
                               </div>
-
-                              <div>
-                                <h4 className="text-sm font-medium mb-2">Refutation:</h4>
-                                <div className="text-sm p-3 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
-                                  {counter.refutationNarrative}
-                                </div>
-                              </div>
-
-                              <div>
-                                <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
-                                  <FileText className="h-3 w-3" />
-                                  Refuting Evidence ({counter.refutingEvidenceIds.length})
-                                </h4>
-                                <div className="space-y-2">
-                                  {counter.refutingEvidenceIds.map((evidenceId, eIndex) => {
-                                    const evidence = findEvidenceById(evidenceId)
-                                    return (
-                                      <div
-                                        key={eIndex}
-                                        className="text-xs p-2 bg-green-50 dark:bg-green-900/20 rounded border"
-                                      >
-                                        <div className="flex items-center justify-between mb-1">
-                                          <Badge variant="outline" className="text-xs">
-                                            {evidenceId}
-                                          </Badge>
-                                          {evidence && <span className="text-muted-foreground">{evidence.type}</span>}
-                                        </div>
-                                        {evidence ? (
-                                          <p className="text-xs">{evidence.result.substring(0, 100)}...</p>
-                                        ) : (
-                                          <p className="text-xs text-red-500">Evidence not found</p>
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </ScrollArea>
+                            </CardContent>
+                          </Card>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
                 </CardContent>
               </Card>
             </div>

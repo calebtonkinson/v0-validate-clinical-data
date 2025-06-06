@@ -9,6 +9,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronRight, Copy, AlertTriangle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 
 // Appeal Plan Schema
 export const AppealPlanSchema = z
@@ -35,6 +36,67 @@ export const AppealPlanSchema = z
   })
   .passthrough()
 
+// Common annotation data schema
+const annotationDataSchema = z
+  .object({
+    letter: z.string(),
+    fullAnnotationReport: z
+      .object({
+        snippets: z.array(
+          z
+            .object({
+              quote: z.string(),
+              type: z.enum(["quote", "statement", "source"]),
+              category: z.enum(["lab", "vital", "imaging", "cdi_query", "note", "med", "other"]),
+              supportingSources: z
+                .array(
+                  z
+                    .object({
+                      source: z.string(),
+                      sourceUrl: z.string().optional(),
+                      citation: z.string(),
+                      whenToUse: z.string().optional(),
+                      howToUse: z.string().optional(),
+                      generatedId: z.string(),
+                    })
+                    .passthrough(),
+                )
+                .optional(),
+              evidence: z.array(
+                z
+                  .object({
+                    id: z.string().optional(),
+                    type: z.string(),
+                    timestamp: z.string(),
+                    hideTimestamp: z.boolean().optional(),
+                    hideResult: z.boolean().optional(),
+                    resultLabel: z.string().optional(),
+                    result: z.string(),
+                    reference: z.string().optional(),
+                    reasoning: z.string().optional(),
+                    timezone: z.string().optional(),
+                    generatedId: z.string().optional(),
+                  })
+                  .passthrough(),
+              ),
+              supportRating: z.enum(["strong", "partial", "none"]),
+              replacement: z
+                .object({
+                  currentText: z.string(),
+                  replacementText: z.string(),
+                  justification: z.string(),
+                })
+                .passthrough()
+                .optional(),
+            })
+            .passthrough(),
+        ),
+      })
+      .passthrough(),
+    plan: AppealPlanSchema.optional(),
+  })
+  .passthrough()
+
 // Zod schemas for message validation - made permissive with .passthrough()
 export const settingsMessageSchema = z
   .object({
@@ -55,67 +117,13 @@ export const braintrustDataMessageSchema = z
     data: z
       .object({
         span_id: z.string(),
-        output: z
-          .object({
-            letter: z.string(),
-            fullAnnotationReport: z
-              .object({
-                snippets: z.array(
-                  z
-                    .object({
-                      quote: z.string(),
-                      type: z.enum(["quote", "statement", "source"]),
-                      category: z.enum(["lab", "vital", "imaging", "cdi_query", "note", "med", "other"]),
-                      supportingSources: z
-                        .array(
-                          z
-                            .object({
-                              source: z.string(),
-                              sourceUrl: z.string().optional(),
-                              citation: z.string(),
-                              whenToUse: z.string().optional(),
-                              howToUse: z.string().optional(),
-                              generatedId: z.string(),
-                            })
-                            .passthrough(), // Allow extra fields in supporting sources
-                        )
-                        .optional(),
-                      evidence: z.array(
-                        z
-                          .object({
-                            id: z.string().optional(),
-                            type: z.string(),
-                            timestamp: z.string(),
-                            hideTimestamp: z.boolean().optional(),
-                            hideResult: z.boolean().optional(),
-                            resultLabel: z.string().optional(),
-                            result: z.string(),
-                            reference: z.string().optional(),
-                            reasoning: z.string().optional(),
-                            timezone: z.string().optional(),
-                            generatedId: z.string().optional(),
-                          })
-                          .passthrough(), // Allow extra fields in evidence
-                      ),
-                      supportRating: z.enum(["strong", "partial", "none"]),
-                      replacement: z
-                        .object({
-                          currentText: z.string(),
-                          replacementText: z.string(),
-                          justification: z.string(),
-                        })
-                        .passthrough() // Allow extra fields in replacement
-                        .optional(),
-                    })
-                    .passthrough(), // Allow extra fields in snippets
-                ),
-              })
-              .passthrough(), // Allow extra fields in fullAnnotationReport
-            plan: AppealPlanSchema.optional(), // Add optional plan
-          })
-          .passthrough(), // Allow extra fields in output
+        output: annotationDataSchema.optional(), // Data might be in output
+        expected: annotationDataSchema.optional(), // Or in expected
       })
-      .passthrough(), // Allow extra fields in data
+      .passthrough() // Allow extra fields in data
+      .refine((data) => data.output || data.expected, {
+        message: "Either 'output' or 'expected' must contain annotation data",
+      }),
   })
   .passthrough()
 
@@ -222,6 +230,7 @@ export default function IframePage() {
   const [validationError, setValidationError] = useState<z.ZodError | null>(null)
   const [rawInput, setRawInput] = useState<any>(null)
   const [debugExpanded, setDebugExpanded] = useState(false)
+  const [dataSource, setDataSource] = useState<"output" | "expected" | "direct" | null>(null)
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -231,12 +240,34 @@ export default function IframePage() {
     }
   }
 
-  const mapBraintrustData = (braintrustData: any): AnnotationData => {
-    return {
-      letter: braintrustData.output.letter,
-      snippets: braintrustData.output.fullAnnotationReport.snippets,
-      plan: braintrustData.output.plan,
+  const mapBraintrustData = (braintrustData: any): { data: AnnotationData; source: "output" | "expected" } => {
+    // Check output first, then expected
+    if (braintrustData.output && braintrustData.output.letter && braintrustData.output.fullAnnotationReport) {
+      return {
+        data: {
+          letter: braintrustData.output.letter,
+          snippets: braintrustData.output.fullAnnotationReport.snippets,
+          plan: braintrustData.output.plan,
+        },
+        source: "output",
+      }
+    } else if (
+      braintrustData.expected &&
+      braintrustData.expected.letter &&
+      braintrustData.expected.fullAnnotationReport
+    ) {
+      return {
+        data: {
+          letter: braintrustData.expected.letter,
+          snippets: braintrustData.expected.fullAnnotationReport.snippets,
+          plan: braintrustData.expected.plan,
+        },
+        source: "expected",
+      }
     }
+
+    // Fallback - shouldn't reach here due to schema validation
+    throw new Error("No valid annotation data found in output or expected")
   }
 
   const formatZodError = (zodError: z.ZodError) => {
@@ -269,16 +300,21 @@ export default function IframePage() {
           }
         } else if (message.type === "data") {
           let mappedData: AnnotationData
+          let source: "output" | "expected" | "direct"
 
-          // Check if it's Braintrust format (has output.fullAnnotationReport)
-          if ("output" in message.data && "fullAnnotationReport" in message.data.output) {
-            mappedData = mapBraintrustData(message.data)
+          // Check if it's Braintrust format (has output or expected with fullAnnotationReport)
+          if ("output" in message.data || "expected" in message.data) {
+            const result = mapBraintrustData(message.data)
+            mappedData = result.data
+            source = result.source
           } else {
             // Direct format
             mappedData = message.data as AnnotationData
+            source = "direct"
           }
 
           setData(mappedData)
+          setDataSource(source)
           setIsLoading(false)
           setError(null)
           setValidationError(null)
@@ -492,38 +528,15 @@ export default function IframePage() {
   "type": "data",
   "data": {
     "span_id": "...",
-    "output": {
+    "output": {  // Data can be in 'output'
       "letter": "Clinical letter text...",
-      "fullAnnotationReport": {
-        "snippets": [
-          {
-            "quote": "text from letter",
-            "type": "quote" | "statement" | "source",
-            "category": "lab" | "vital" | "imaging" | "cdi_query" | "note" | "med" | "other",
-            "evidence": [...],
-            "supportingSources": [...],
-            "supportRating": "strong" | "partial" | "none",
-            "replacement": {...}
-          }
-        ]
-      },
-      "plan": {
-        "keyArguments": [
-          {
-            "title": "Argument title",
-            "evidenceIds": ["ev-1", "ev-2"],
-            "narrative": "Argument narrative",
-            "supportingCitationIds": ["cite-1", "cite-2"]
-          }
-        ],
-        "anticipatedCounterarguments": [
-          {
-            "counterargument": "Counter argument text",
-            "refutingEvidenceIds": ["ev-3"],
-            "refutationNarrative": "Refutation narrative"
-          }
-        ]
-      }
+      "fullAnnotationReport": { "snippets": [...] },
+      "plan": { "keyArguments": [...], "anticipatedCounterarguments": [...] }
+    },
+    "expected": {  // OR in 'expected'
+      "letter": "Clinical letter text...",
+      "fullAnnotationReport": { "snippets": [...] },
+      "plan": { "keyArguments": [...], "anticipatedCounterarguments": [...] }
     }
   }
 }`}
@@ -554,7 +567,7 @@ export default function IframePage() {
                   This log doesn't contain annotation report data in the expected format.
                 </p>
                 <p className="text-xs text-muted-foreground mt-3">
-                  Expected: Braintrust span with output.letter and output.fullAnnotationReport.snippets
+                  Expected: Braintrust span with data in output.fullAnnotationReport or expected.fullAnnotationReport
                 </p>
               </div>
 
@@ -643,8 +656,20 @@ export default function IframePage() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-4 px-4">
         <div className="mb-4">
-          <h1 className="text-2xl font-bold">Clinical Evidence Review</h1>
-          <p className="text-sm text-muted-foreground">Annotation report loaded in Braintrust iframe</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">Clinical Evidence Review</h1>
+              <p className="text-sm text-muted-foreground">Annotation report loaded in Braintrust iframe</p>
+            </div>
+            {dataSource && (
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Data source:</p>
+                <Badge variant="outline" className="text-xs">
+                  {dataSource === "output" ? "Output" : dataSource === "expected" ? "Expected" : "Direct"}
+                </Badge>
+              </div>
+            )}
+          </div>
         </div>
 
         <AnnotationReportReview letter={data.letter} snippets={data.snippets} plan={data.plan} />
