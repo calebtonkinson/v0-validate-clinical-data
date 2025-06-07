@@ -323,7 +323,7 @@ export function AnnotationReportLetterView({
             <CardContent>
               <ScrollArea className="h-[500px] rounded-md border p-4">
                 <div
-                  className="prose dark:prose-invert max-w-none leading-relaxed"
+                  className="prose dark:prose-invert max-w-none leading-relaxed whitespace-pre-wrap"
                   dangerouslySetInnerHTML={{ __html: renderHighlightedLetter() }}
                   onClick={handleSnippetClick}
                 />
