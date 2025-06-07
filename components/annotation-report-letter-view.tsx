@@ -138,6 +138,13 @@ export function AnnotationReportLetterView({
     }
   }
 
+  // Escape HTML characters to prevent HTML injection
+  const escapeHtml = (text: string) => {
+    const div = document.createElement("div")
+    div.textContent = text
+    return div.innerHTML
+  }
+
   // Create a highlighted version of the letter
   const renderHighlightedLetter = () => {
     let result = letter
@@ -146,28 +153,30 @@ export function AnnotationReportLetterView({
       end: number
       replacement: string
       priority: number
+      snippetIndex: number
     }> = []
 
-    // Process each snippet
+    // Process each snippet and find all occurrences
     snippets.forEach((snippet, index) => {
       const quote = snippet.quote
-      let start = letter.indexOf(quote)
-      let textToHighlight = quote
+      let searchStart = 0
+      let foundIndex = -1
 
-      // If we can't find the original quote but there's a replacement,
-      // try to find the replacement text in the letter
-      if (start === -1 && snippet.replacement) {
-        const replacementStart = letter.indexOf(snippet.replacement.replacementText)
-        if (replacementStart !== -1) {
-          start = replacementStart
-          textToHighlight = snippet.replacement.replacementText
+      // Find all occurrences of this quote in the letter
+      while ((foundIndex = letter.indexOf(quote, searchStart)) !== -1) {
+        const start = foundIndex
+        const end = start + quote.length
+        let textToHighlight = quote
+
+        // Check for replacement text if original quote not found
+        if (snippet.replacement && letter.indexOf(snippet.replacement.replacementText) !== -1) {
+          const replacementStart = letter.indexOf(snippet.replacement.replacementText)
+          if (replacementStart !== -1) {
+            textToHighlight = snippet.replacement.replacementText
+          }
         }
-      }
 
-      if (start !== -1) {
-        const end = start + textToHighlight.length
         const isSelected = selectedSnippetIndex === index
-
         let colorClass = getSupportRatingColor(snippet.supportRating)
         const borderClass = snippet.type === "source" ? getTypeColor(snippet.type) : getCategoryColor(snippet.category)
 
@@ -179,34 +188,26 @@ export function AnnotationReportLetterView({
         const categoryIcon = getCategoryIcon(snippet.category)
         const supportIcon = snippet.supportRating === "strong" ? "✓" : snippet.supportRating === "partial" ? "⚠" : "✗"
 
+        // Escape the text content to prevent HTML issues
+        const escapedText = escapeHtml(textToHighlight)
+        const escapedType = escapeHtml(snippet.type)
+        const escapedCategory = escapeHtml(snippet.category)
+        const escapedSupportRating = escapeHtml(snippet.supportRating)
+
         let highlightedQuote: string
 
         if (snippet.replacement) {
-          // Check if the text in the letter matches the replacement text (already applied)
           const isReplacementApplied = textToHighlight === snippet.replacement.replacementText
 
           if (isReplacementApplied) {
-            // Replacement has been applied - show the current text with an indicator
-            highlightedQuote = `<span 
-            class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${borderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
-            data-index="${index}"
-            title="Type: ${snippet.type} | Category: ${snippet.category} | Support: ${snippet.supportRating} | Replacement applied"
-          ><span class="text-xs mr-1">${typeIcon}</span><span class="text-xs mr-1">${categoryIcon}</span><span class="text-blue-700 dark:text-blue-300 font-medium">${textToHighlight}</span><span class="text-xs ml-1 text-blue-600" title="Replacement applied">🔄</span><span class="text-xs ml-1">${supportIcon}</span></span>`
+            highlightedQuote = `<span class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${borderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" data-index="${index}" title="Type: ${escapedType} | Category: ${escapedCategory} | Support: ${escapedSupportRating} | Replacement applied"><span class="text-xs mr-1">${typeIcon}</span><span class="text-xs mr-1">${categoryIcon}</span><span class="text-blue-700 dark:text-blue-300 font-medium">${escapedText}</span><span class="text-xs ml-1 text-blue-600" title="Replacement applied">🔄</span><span class="text-xs ml-1">${supportIcon}</span></span>`
           } else {
-            // Original text found - show crossed out with replacement
-            highlightedQuote = `<span 
-            class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${borderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
-            data-index="${index}"
-            title="Type: ${snippet.type} | Category: ${snippet.category} | Support: ${snippet.supportRating} | Has replacement"
-          ><span class="text-xs mr-1">${typeIcon}</span><span class="text-xs mr-1">${categoryIcon}</span><span class="line-through text-gray-500 dark:text-gray-400">${snippet.replacement.currentText}</span> <span class="text-blue-700 dark:text-blue-300 font-medium">${snippet.replacement.replacementText}</span><span class="text-xs ml-1">${supportIcon}</span></span>`
+            const escapedCurrentText = escapeHtml(snippet.replacement.currentText)
+            const escapedReplacementText = escapeHtml(snippet.replacement.replacementText)
+            highlightedQuote = `<span class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${borderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" data-index="${index}" title="Type: ${escapedType} | Category: ${escapedCategory} | Support: ${escapedSupportRating} | Has replacement"><span class="text-xs mr-1">${typeIcon}</span><span class="text-xs mr-1">${categoryIcon}</span><span class="line-through text-gray-500 dark:text-gray-400">${escapedCurrentText}</span> <span class="text-blue-700 dark:text-blue-300 font-medium">${escapedReplacementText}</span><span class="text-xs ml-1">${supportIcon}</span></span>`
           }
         } else {
-          // No replacement - standard highlighting
-          highlightedQuote = `<span 
-          class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${borderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" 
-          data-index="${index}"
-          title="Type: ${snippet.type} | Category: ${snippet.category} | Support: ${snippet.supportRating}"
-        ><span class="text-xs mr-1">${typeIcon}</span><span class="text-xs mr-1">${categoryIcon}</span>${textToHighlight}<span class="text-xs ml-1">${supportIcon}</span></span>`
+          highlightedQuote = `<span class="px-1 py-0.5 rounded cursor-pointer border-l-4 ${colorClass} ${borderClass} hover:opacity-80 snippet-highlight inline-block my-0.5" data-index="${index}" title="Type: ${escapedType} | Category: ${escapedCategory} | Support: ${escapedSupportRating}"><span class="text-xs mr-1">${typeIcon}</span><span class="text-xs mr-1">${categoryIcon}</span>${escapedText}<span class="text-xs ml-1">${supportIcon}</span></span>`
         }
 
         modifications.push({
@@ -214,15 +215,44 @@ export function AnnotationReportLetterView({
           end,
           replacement: highlightedQuote,
           priority: 1,
+          snippetIndex: index,
         })
+
+        searchStart = foundIndex + 1
+        break // Only highlight the first occurrence to avoid overlaps
       }
     })
 
+    // Remove overlapping modifications
+    const cleanModifications = []
+    modifications.sort((a, b) => a.start - b.start)
+
+    for (let i = 0; i < modifications.length; i++) {
+      const current = modifications[i]
+      let hasOverlap = false
+
+      // Check if this modification overlaps with any already accepted modification
+      for (const accepted of cleanModifications) {
+        if (
+          (current.start >= accepted.start && current.start < accepted.end) ||
+          (current.end > accepted.start && current.end <= accepted.end) ||
+          (current.start <= accepted.start && current.end >= accepted.end)
+        ) {
+          hasOverlap = true
+          break
+        }
+      }
+
+      if (!hasOverlap) {
+        cleanModifications.push(current)
+      }
+    }
+
     // Sort modifications by position (from end to start to avoid index shifting)
-    modifications.sort((a, b) => b.start - a.start)
+    cleanModifications.sort((a, b) => b.start - a.start)
 
     // Apply all modifications
-    modifications.forEach(({ start, end, replacement }) => {
+    cleanModifications.forEach(({ start, end, replacement }) => {
       result = result.substring(0, start) + replacement + result.substring(end)
     })
 
