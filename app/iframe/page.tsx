@@ -36,149 +36,6 @@ export const AppealPlanSchema = z
   })
   .passthrough()
 
-// Common annotation data schema
-const annotationDataSchema = z
-  .object({
-    letter: z.string(),
-    fullAnnotationReport: z
-      .object({
-        snippets: z.array(
-          z
-            .object({
-              quote: z.string(),
-              type: z.enum(["quote", "statement", "source"]),
-              category: z.enum(["lab", "vital", "imaging", "cdi_query", "note", "med", "other"]),
-              supportingSources: z
-                .array(
-                  z
-                    .object({
-                      source: z.string(),
-                      sourceUrl: z.string().optional(),
-                      citation: z.string(),
-                      whenToUse: z.string().optional(),
-                      howToUse: z.string().optional(),
-                      generatedId: z.string(),
-                    })
-                    .passthrough(),
-                )
-                .optional(),
-              evidence: z.array(
-                z
-                  .object({
-                    id: z.string().optional(),
-                    type: z.string(),
-                    timestamp: z.string(),
-                    hideTimestamp: z.boolean().optional(),
-                    hideResult: z.boolean().optional(),
-                    resultLabel: z.string().optional(),
-                    result: z.string(),
-                    reference: z.string().optional(),
-                    reasoning: z.string().optional(),
-                    timezone: z.string().optional(),
-                    generatedId: z.string().optional(),
-                  })
-                  .passthrough(),
-              ),
-              supportRating: z.enum(["strong", "partial", "none"]),
-              replacement: z
-                .object({
-                  currentText: z.string(),
-                  replacementText: z.string(),
-                  justification: z.string(),
-                })
-                .passthrough()
-                .optional(),
-            })
-            .passthrough(),
-        ),
-      })
-      .passthrough(),
-    plan: AppealPlanSchema.optional(),
-  })
-  .passthrough()
-
-// Zod schemas for message validation - made permissive with .passthrough()
-export const settingsMessageSchema = z
-  .object({
-    type: z.literal("settings"),
-    settings: z
-      .object({
-        theme: z.enum(["light", "dark"]),
-        readOnly: z.boolean(),
-      })
-      .passthrough(), // Allow extra fields
-  })
-  .passthrough()
-
-// Schema for Braintrust data format - made permissive
-export const braintrustDataMessageSchema = z
-  .object({
-    type: z.literal("data"),
-    data: z
-      .object({
-        span_id: z.string(),
-        output: annotationDataSchema.optional(), // Data might be in output
-        expected: annotationDataSchema.optional(), // Or in expected
-      })
-      .passthrough() // Allow extra fields in data
-      .refine((data) => data.output || data.expected, {
-        message: "Either 'output' or 'expected' must contain annotation data",
-      }),
-  })
-  .passthrough()
-
-// Legacy direct format schema (for backwards compatibility) - made permissive
-export const directDataMessageSchema = z
-  .object({
-    type: z.literal("data"),
-    data: z
-      .object({
-        letter: z.string(),
-        snippets: z.array(
-          z
-            .object({
-              quote: z.string(),
-              type: z.enum(["quote", "statement"]),
-              category: z.enum(["lab", "vital", "imaging", "cdi_query", "note", "med", "other"]),
-              evidence: z.array(
-                z
-                  .object({
-                    id: z.string().optional(),
-                    type: z.string(),
-                    timestamp: z.string(),
-                    hideTimestamp: z.boolean().optional(),
-                    hideResult: z.boolean().optional(),
-                    resultLabel: z.string().optional(),
-                    result: z.string(),
-                    reference: z.string().optional(),
-                    reasoning: z.string().optional(),
-                    timezone: z.string().optional(),
-                    generatedId: z.string().optional(),
-                  })
-                  .passthrough(),
-              ),
-              supportRating: z.enum(["strong", "partial", "none"]),
-              replacement: z
-                .object({
-                  currentText: z.string(),
-                  replacementText: z.string(),
-                  justification: z.string(),
-                })
-                .passthrough()
-                .optional(),
-            })
-            .passthrough(),
-        ),
-        plan: AppealPlanSchema.optional(), // Add optional plan to legacy format too
-      })
-      .passthrough(),
-  })
-  .passthrough()
-
-export const messageSchema = z.union([settingsMessageSchema, braintrustDataMessageSchema, directDataMessageSchema])
-
-export type Message = z.infer<typeof messageSchema>
-
 interface AppealPlan {
   keyArguments: Array<{
     title: string
@@ -197,7 +54,7 @@ interface AnnotationData {
   letter: string
   snippets: Array<{
     quote: string
-    type: "quote" | "statement"
+    type: "quote" | "statement" | "source"
     category: "lab" | "vital" | "imaging" | "cdi_query" | "note" | "med" | "other"
     evidence: Array<{
       id?: string
@@ -211,6 +68,14 @@ interface AnnotationData {
       reasoning?: string
       timezone?: string
       generatedId?: string
+    }>
+    supportingSources?: Array<{
+      source: string
+      sourceUrl?: string
+      citation: string
+      whenToUse?: string
+      howToUse?: string
+      generatedId: string
     }>
     supportRating: "strong" | "partial" | "none"
     replacement?: {
@@ -227,7 +92,7 @@ export default function IframePage() {
   const [theme, setTheme] = useState<"light" | "dark">("light")
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [validationError, setValidationError] = useState<z.ZodError | null>(null)
+  const [validationError, setValidationError] = useState<any>(null)
   const [rawInput, setRawInput] = useState<any>(null)
   const [debugExpanded, setDebugExpanded] = useState(false)
   const [dataSource, setDataSource] = useState<"output" | "expected" | "direct" | null>(null)
@@ -240,46 +105,106 @@ export default function IframePage() {
     }
   }
 
-  const mapBraintrustData = (braintrustData: any): { data: AnnotationData; source: "output" | "expected" } => {
-    // Check output first, then expected
-    if (braintrustData.output && braintrustData.output.letter && braintrustData.output.fullAnnotationReport) {
-      return {
-        data: {
-          letter: braintrustData.output.letter,
-          snippets: braintrustData.output.fullAnnotationReport.snippets,
-          plan: braintrustData.output.plan,
-        },
-        source: "output",
+  // Flexible data extraction function
+  const extractAnnotationData = (messageData: any): { data: AnnotationData; source: string } | null => {
+    // Handle settings messages
+    if (messageData.type === "settings" && messageData.settings) {
+      if (messageData.settings.theme) {
+        setTheme(messageData.settings.theme)
+        if (messageData.settings.theme === "dark") {
+          document.documentElement.classList.add("dark")
+        } else {
+          document.documentElement.classList.remove("dark")
+        }
       }
-    } else if (
-      braintrustData.expected &&
-      braintrustData.expected.letter &&
-      braintrustData.expected.fullAnnotationReport
-    ) {
-      return {
-        data: {
-          letter: braintrustData.expected.letter,
-          snippets: braintrustData.expected.fullAnnotationReport.snippets,
-          plan: braintrustData.expected.plan,
-        },
-        source: "expected",
+      return null
+    }
+
+    // Skip non-data messages
+    if (messageData.type !== "data") {
+      return null
+    }
+
+    let annotationData: any = null
+    let source = "unknown"
+
+    // Try to find annotation data in various locations
+    if (messageData.data) {
+      // Check for Braintrust format with output
+      if (messageData.data.output?.letter && messageData.data.output?.fullAnnotationReport?.snippets) {
+        annotationData = {
+          letter: messageData.data.output.letter,
+          snippets: messageData.data.output.fullAnnotationReport.snippets,
+          plan: messageData.data.output.plan,
+        }
+        source = "output"
+      }
+      // Check for Braintrust format with expected
+      else if (messageData.data.expected?.letter && messageData.data.expected?.fullAnnotationReport?.snippets) {
+        annotationData = {
+          letter: messageData.data.expected.letter,
+          snippets: messageData.data.expected.fullAnnotationReport.snippets,
+          plan: messageData.data.expected.plan,
+        }
+        source = "expected"
+      }
+      // Check for direct format
+      else if (messageData.data.letter && messageData.data.snippets) {
+        annotationData = {
+          letter: messageData.data.letter,
+          snippets: messageData.data.snippets,
+          plan: messageData.data.plan,
+        }
+        source = "direct"
       }
     }
 
-    // Fallback - shouldn't reach here due to schema validation
-    throw new Error("No valid annotation data found in output or expected")
+    // Validate that we have the minimum required data
+    if (!annotationData || !annotationData.letter || !Array.isArray(annotationData.snippets)) {
+      return null
+    }
+
+    // Basic validation and cleanup of snippets
+    const validSnippets = annotationData.snippets.filter((snippet: any) => {
+      return (
+        snippet &&
+        typeof snippet.quote === "string" &&
+        snippet.quote.trim() !== "" &&
+        Array.isArray(snippet.evidence) &&
+        ["quote", "statement", "source"].includes(snippet.type) &&
+        ["lab", "vital", "imaging", "cdi_query", "note", "med", "other"].includes(snippet.category) &&
+        ["strong", "partial", "none"].includes(snippet.supportRating)
+      )
+    })
+
+    if (validSnippets.length === 0) {
+      return null
+    }
+
+    return {
+      data: {
+        letter: annotationData.letter,
+        snippets: validSnippets,
+        plan: annotationData.plan,
+      },
+      source,
+    }
   }
 
-  const formatZodError = (zodError: z.ZodError) => {
-    return zodError.issues.map((issue, index) => ({
-      index,
-      path: issue.path.join(".") || "root",
-      message: issue.message,
-      code: issue.code,
-      expected: "expected" in issue ? issue.expected : undefined,
-      received: "received" in issue ? issue.received : undefined,
-      options: "options" in issue ? issue.options : undefined,
-    }))
+  const formatError = (error: any) => {
+    if (error && typeof error === "object") {
+      if (error.issues && Array.isArray(error.issues)) {
+        return error.issues.map((issue: any, index: number) => ({
+          index,
+          path: Array.isArray(issue.path) ? issue.path.join(".") || "root" : "unknown",
+          message: issue.message || "Unknown error",
+          code: issue.code || "unknown",
+          expected: issue.expected,
+          received: issue.received,
+        }))
+      }
+    }
+    return [{ index: 0, path: "root", message: String(error), code: "unknown" }]
   }
 
   useEffect(() => {
@@ -288,47 +213,35 @@ export default function IframePage() {
         // Store the raw input for debugging
         setRawInput(event.data)
 
-        const message = messageSchema.parse(event.data)
+        // Skip invalid messages
+        if (!event.data || typeof event.data !== "object") {
+          console.log("Skipping invalid message:", event.data)
+          return
+        }
 
-        if (message.type === "settings") {
-          setTheme(message.settings.theme)
-          // Apply theme to document
-          if (message.settings.theme === "dark") {
-            document.documentElement.classList.add("dark")
-          } else {
-            document.documentElement.classList.remove("dark")
-          }
-        } else if (message.type === "data") {
-          let mappedData: AnnotationData
-          let source: "output" | "expected" | "direct"
+        console.log("Processing message:", event.data)
 
-          // Check if it's Braintrust format (has output or expected with fullAnnotationReport)
-          if ("output" in message.data || "expected" in message.data) {
-            const result = mapBraintrustData(message.data)
-            mappedData = result.data
-            source = result.source
-          } else {
-            // Direct format
-            mappedData = message.data as AnnotationData
-            source = "direct"
-          }
+        const result = extractAnnotationData(event.data)
 
-          setData(mappedData)
-          setDataSource(source)
+        if (result) {
+          console.log("Successfully extracted annotation data from:", result.source)
+          setData(result.data)
+          setDataSource(result.source as "output" | "expected" | "direct")
           setIsLoading(false)
           setError(null)
           setValidationError(null)
-        }
-      } catch (error) {
-        console.warn("Validation failed:", error)
-
-        // Capture the Zod error details
-        if (error instanceof z.ZodError) {
-          setValidationError(error)
+        } else if (event.data.type === "data") {
+          // Only show error for data messages that failed to parse
+          console.warn("Failed to extract annotation data from data message")
+          setValidationError({ message: "Could not extract valid annotation data from message" })
           setError("validation")
-        } else {
-          setError("unsupported")
+          setIsLoading(false)
         }
+        // For non-data messages (like settings), just continue without error
+      } catch (error) {
+        console.error("Message processing failed:", error)
+        setValidationError(error)
+        setError("validation")
         setIsLoading(false)
       }
     }
@@ -388,7 +301,7 @@ export default function IframePage() {
   }
 
   if (error === "validation" && validationError) {
-    const formattedErrors = formatZodError(validationError)
+    const formattedErrors = formatError(validationError)
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -397,21 +310,19 @@ export default function IframePage() {
             <div className="space-y-6">
               <div className="text-center">
                 <div className="text-6xl mb-4">⚠️</div>
-                <h3 className="text-lg font-medium text-red-600">Data Validation Failed</h3>
+                <h3 className="text-lg font-medium text-red-600">Data Extraction Failed</h3>
                 <p className="text-sm text-muted-foreground mt-2">
-                  The received data doesn't match the expected schema. See details below:
+                  Could not extract valid annotation data from the received message.
                 </p>
               </div>
 
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  Found {formattedErrors.length} validation error{formattedErrors.length !== 1 ? "s" : ""}
-                </AlertDescription>
+                <AlertDescription>The message doesn't contain the required annotation data structure.</AlertDescription>
               </Alert>
 
               <div className="space-y-4">
-                <h4 className="text-sm font-medium">Validation Errors:</h4>
+                <h4 className="text-sm font-medium">Issues Found:</h4>
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {formattedErrors.map((error) => (
                     <Card key={error.index} className="border-red-200 dark:border-red-800">
@@ -419,7 +330,7 @@ export default function IframePage() {
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium text-red-700 dark:text-red-300">
-                              Error #{error.index + 1}
+                              Issue #{error.index + 1}
                             </span>
                             <span className="text-xs bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
                               {error.code}
@@ -429,7 +340,7 @@ export default function IframePage() {
                           <div>
                             <span className="text-xs text-muted-foreground">Path:</span>
                             <code className="ml-2 text-xs bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">
-                              {error.path || "root"}
+                              {error.path}
                             </code>
                           </div>
 
@@ -455,15 +366,6 @@ export default function IframePage() {
                               </code>
                             </div>
                           )}
-
-                          {error.options && (
-                            <div>
-                              <span className="text-xs text-muted-foreground">Valid options:</span>
-                              <code className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 px-1 py-0.5 rounded">
-                                {Array.isArray(error.options) ? error.options.join(", ") : String(error.options)}
-                              </code>
-                            </div>
-                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -478,12 +380,12 @@ export default function IframePage() {
                       {debugExpanded ? (
                         <>
                           <ChevronDown className="h-4 w-4 mr-2" />
-                          Hide Raw Data & Schema
+                          Hide Raw Data
                         </>
                       ) : (
                         <>
                           <ChevronRight className="h-4 w-4 mr-2" />
-                          Show Raw Data & Schema
+                          Show Raw Data
                         </>
                       )}
                     </Button>
@@ -492,33 +394,14 @@ export default function IframePage() {
                     <div className="space-y-4">
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <h4 className="text-sm font-medium">Complete Zod Error Object:</h4>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => copyToClipboard(JSON.stringify(validationError, null, 2))}
-                          >
-                            <Copy className="h-4 w-4 mr-1" />
-                            Copy Error
-                          </Button>
-                        </div>
-                        <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-md border border-red-200 dark:border-red-800">
-                          <pre className="text-xs overflow-auto max-h-60 whitespace-pre-wrap">
-                            {JSON.stringify(validationError, null, 2)}
-                          </pre>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="text-sm font-medium">Received Input Data:</h4>
+                          <h4 className="text-sm font-medium">Received Message:</h4>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => copyToClipboard(JSON.stringify(rawInput, null, 2))}
                           >
                             <Copy className="h-4 w-4 mr-1" />
-                            Copy Input
+                            Copy
                           </Button>
                         </div>
                         <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-md border">
@@ -529,26 +412,28 @@ export default function IframePage() {
                       </div>
 
                       <div>
-                        <h4 className="text-sm font-medium mb-2">Expected Braintrust Format:</h4>
+                        <h4 className="text-sm font-medium mb-2">Expected Data Locations:</h4>
                         <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md border border-blue-200 dark:border-blue-800">
-                          <pre className="text-xs overflow-auto max-h-40 whitespace-pre-wrap">
-                            {`{
-  "type": "data",
-  "data": {
-    "span_id": "...",
-    "output": {  // Data can be in 'output'
-      "letter": "Clinical letter text...",
-      "fullAnnotationReport": { "snippets": [...] },
-      "plan": { "keyArguments": [...], "anticipatedCounterarguments": [...] }
-    },
-    "expected": {  // OR in 'expected'
-      "letter": "Clinical letter text...",
-      "fullAnnotationReport": { "snippets": [...] },
-      "plan": { "keyArguments": [...], "anticipatedCounterarguments": [...] }
-    }
-  }
-}`}
-                          </pre>
+                          <div className="text-xs space-y-2">
+                            <div>
+                              <strong>Option 1 - Braintrust Output:</strong>
+                              <code className="block mt-1 p-2 bg-white dark:bg-gray-900 rounded">
+                                data.output.letter + data.output.fullAnnotationReport.snippets
+                              </code>
+                            </div>
+                            <div>
+                              <strong>Option 2 - Braintrust Expected:</strong>
+                              <code className="block mt-1 p-2 bg-white dark:bg-gray-900 rounded">
+                                data.expected.letter + data.expected.fullAnnotationReport.snippets
+                              </code>
+                            </div>
+                            <div>
+                              <strong>Option 3 - Direct:</strong>
+                              <code className="block mt-1 p-2 bg-white dark:bg-gray-900 rounded">
+                                data.letter + data.snippets
+                              </code>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -570,12 +455,9 @@ export default function IframePage() {
             <div className="text-center space-y-4">
               <div className="text-6xl">🚧</div>
               <div>
-                <h3 className="text-lg font-medium">Log Format Not Supported</h3>
+                <h3 className="text-lg font-medium">No Annotation Data Received</h3>
                 <p className="text-sm text-muted-foreground mt-2">
-                  This log doesn't contain annotation report data in the expected format.
-                </p>
-                <p className="text-xs text-muted-foreground mt-3">
-                  Expected: Braintrust span with data in output.fullAnnotationReport or expected.fullAnnotationReport
+                  Waiting for a message containing annotation report data...
                 </p>
               </div>
 
@@ -600,7 +482,7 @@ export default function IframePage() {
                     <CollapsibleContent className="mt-4">
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-medium">Received Input Data:</h4>
+                          <h4 className="text-sm font-medium">Last Received Message:</h4>
                           <Button
                             variant="ghost"
                             size="sm"
